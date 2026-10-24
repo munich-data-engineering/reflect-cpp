@@ -138,25 +138,22 @@ struct Reader {
     }
   }
 
-  /// @brief Reads a map from the archive using the provided MapReader.
-  /// @tparam MapReader The type responsible for reading map entries.
-  /// @param _map_reader The reader instance for map entries.
-  /// @param _map The input map type containing the archive pointer.
-  /// @return std::nullopt on success, or an Error if reading fails.
+  /// Reads keys and values directly from the archive in sequence.
   template <class MapReader>
-  std::optional<Error> read_map(const MapReader& _map_reader,
-                                const InputMapType& _map) const noexcept {
+  std::optional<Error> read_typed_map(const MapReader& _reader,
+                                      const InputMapType& _map) const noexcept {
     try {
-      std::size_t size;
+      size_t size;
       (*_map.ar) & size;
-      for (std::size_t i = 0; i < size; ++i) {
-        std::string key;
-        (*_map.ar) & key;
-        _map_reader.read(std::string_view(key), InputVarType{_map.ar});
+      for (size_t i = 0; i < size; ++i) {
+        const auto var = InputVarType{_map.ar};
+        if (const auto err = _reader.read(var, var)) {
+          return err;
+        }
       }
       return std::nullopt;
-    } catch (std::exception& e) {
-      return Error(std::string("yas map read error: ") + e.what());
+    } catch (const std::exception& e) {
+      return Error(e.what());
     }
   }
 

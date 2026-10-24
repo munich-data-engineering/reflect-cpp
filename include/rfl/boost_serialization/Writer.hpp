@@ -31,6 +31,41 @@ class Writer {
   using OutputUnionType = BoostOutputUnion;
   using OutputVarType = BoostOutputVar;
 
+  /// A context for writing a typed map entry's key, then its value.
+  struct OutputMapEntryType {};
+
+  OutputMapEntryType map_entry(OutputMapType*) const { return {}; }
+
+  OutputArrayType add_array_to_map_entry(const size_t _size,
+                                         OutputMapEntryType*) const {
+    return array_as_root(_size);
+  }
+
+  OutputObjectType add_object_to_map_entry(const size_t _size,
+                                           OutputMapEntryType*) const {
+    return object_as_root(_size);
+  }
+
+  template <class T>
+  OutputVarType add_value_to_map_entry(const T& _var,
+                                       OutputMapEntryType*) const {
+    new_value(_var);
+    return OutputVarType{};
+  }
+
+  OutputVarType add_null_to_map_entry(OutputMapEntryType*) const {
+    return null_as_root();
+  }
+
+  OutputMapType add_map_to_map_entry(const size_t _size,
+                                     OutputMapEntryType*) const {
+    return map_as_root(_size);
+  }
+
+  OutputUnionType add_union_to_map_entry(OutputMapEntryType*) const {
+    return union_as_root();
+  }
+
   /// Constructs a Writer with a Boost output archive.
   /// @param _ar Pointer to the Boost output archive to write to
   Writer(OArchive* _ar) : ar_(_ar) {}

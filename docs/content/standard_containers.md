@@ -21,7 +21,7 @@ This will be represented as follows:
 {"firstName":"Homer","lastName":"Simpson"}
 ```
 
-The same is true for numeric types:
+For JSON and other formats that use string map keys, the same is true for numeric types:
 
 ```cpp
 std::map<int, std::string> homer;
@@ -56,3 +56,25 @@ will be represented as arrays. Containers for which the `value_type`
 is a key-value-pair will be represented as arrays of pairs.
 
 `std::expected` is an exception to this: it is serialized as its value type, or as an object with a single `error` field. Refer to the [std::expected](../expected) section for details.
+
+## Typed map keys in binary formats
+
+MessagePack, Cereal, YAS, and Boost.Serialization serialize the keys of the
+maps described above as values of their original type. This applies to both
+`std::map` and `std::unordered_map`, including numeric `ReflectionType` wrappers
+such as `rfl::Validator`. Validation is applied when reading keys.
+
+For example, `std::map<int, std::string>{{1, "Homer"}}` contains an integer key
+in MessagePack, rather than the string `"1"`. The archive backends write the
+entry count followed by each typed key and its value. No intermediate container
+or conversion to/from decimal strings is needed. Floating-point keys retain
+their precision instead of being rounded by `std::to_string`.
+
+This changes the wire format for numeric keys in these backends. There is no
+automatic detection or compatibility mode for previously serialized string
+keys; readers and writers must use the same representation.
+
+Other backends retain their existing representation. In particular, the CBOR
+adapter currently reads through a JSON DOM with string object keys, so native
+typed CBOR map keys are not supported by this change. Maps with compound keys
+and multimaps continue to use arrays of pairs.

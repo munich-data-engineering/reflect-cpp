@@ -11,6 +11,9 @@
 #include "MapReader.hpp"
 #include "Parent.hpp"
 #include "Parser_base.hpp"
+#include "SupportsTypedMapReader.hpp"
+#include "SupportsTypedMapWriter.hpp"
+#include "TypedMapReader.hpp"
 #include "schema/Type.hpp"
 #include "schemaful/IsSchemafulReader.hpp"
 #include "schemaful/IsSchemafulWriter.hpp"
@@ -60,7 +63,9 @@ struct MapParser {
    */
   template <class P>
   static void write(const W& _w, const MapType& _m, const P& _parent) {
-    if constexpr (schemaful::IsSchemafulWriter<W>) {
+    if constexpr (SupportsTypedMapWriter<W>) {
+      write_typed_map(_w, _m, _parent);
+    } else if constexpr (schemaful::IsSchemafulWriter<W>) {
       write_map(_w, _m, _parent);
     } else {
       write_object(_w, _m, _parent);
@@ -82,24 +87,57 @@ struct MapParser {
  private:
   static Result<MapType> make_map(const R& _r, const auto& _obj_or_map) {
     MapType map;
-    std::vector<std::string> errors;
-    const auto map_reader =
-        MapReader<R, W, MapType, ProcessorsType>(&_r, &map, &errors);
-    if constexpr (schemaful::IsSchemafulReader<R>) {
-      const auto err = _r.read_map(map_reader, _obj_or_map);
-      if (err) {
+    if constexpr (SupportsTypedMapReader<
+                      R, std::remove_cvref_t<decltype(_obj_or_map)>>) {
+      const auto reader =
+          TypedMapReader<R, W, MapType, ProcessorsType>{&_r, &map};
+      if (const auto err = _r.read_typed_map(reader, _obj_or_map)) {
         return error(*err);
       }
+      return map;
     } else {
-      const auto err = _r.read_object(map_reader, _obj_or_map);
-      if (err) {
-        return error(*err);
+      std::vector<std::string> errors;
+      const auto map_reader =
+          MapReader<R, W, MapType, ProcessorsType>(&_r, &map, &errors);
+      if constexpr (schemaful::IsSchemafulReader<R>) {
+        const auto err = _r.read_map(map_reader, _obj_or_map);
+        if (err) {
+          return error(*err);
+        }
+      } else {
+        const auto err = _r.read_object(map_reader, _obj_or_map);
+        if (err) {
+          return error(*err);
+        }
       }
+      if (errors.size() != 0) {
+        return error(to_single_error_message(errors));
+      }
+      return map;
     }
-    if (errors.size() != 0) {
-      return error(to_single_error_message(errors));
+  }
+
+  template <class P>
+  static void write_typed_map(const W& _w, const MapType& _m,
+                              const P& _parent) {
+    const auto write_entries = [&](auto* map) {
+      for (const auto& [key, value] : _m) {
+        auto entry = _w.map_entry(map);
+        const auto parent = typename ParentType::template MapEntry<
+            typename W::OutputMapEntryType>{&entry};
+        Parser<R, W, KeyType, ProcessorsType>::write(_w, key, parent);
+        Parser<R, W, ValueType, ProcessorsType>::write(_w, value, parent);
+      }
+    };
+    if constexpr (schemaful::IsSchemafulWriter<W>) {
+      auto map = ParentType::add_map(_w, _m.size(), _parent);
+      write_entries(&map);
+      _w.end_map(&map);
+    } else {
+      auto map = ParentType::add_object(_w, _m.size(), _parent);
+      write_entries(&map);
+      _w.end_object(&map);
     }
-    return map;
   }
 
   template <class P>

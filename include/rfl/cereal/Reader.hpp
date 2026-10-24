@@ -146,26 +146,22 @@ struct Reader {
     }
   }
 
-  /// Reads all key-value pairs from a Cereal map using the provided map reader.
-  /// Keys are stored as strings in the archive.
-  /// @tparam MapReader The type of reader that processes individual map entries
-  /// @param _map_reader The reader object that processes each key-value pair
-  /// @param _map The Cereal map structure
-  /// @return std::nullopt on success, or an Error if reading fails
+  /// Reads keys and values directly from the archive in sequence.
   template <class MapReader>
-  std::optional<Error> read_map(const MapReader& _map_reader,
-                                const InputMapType& _map) const noexcept {
+  std::optional<Error> read_typed_map(const MapReader& _reader,
+                                      const InputMapType& _map) const noexcept {
     try {
       size_t size;
       (*_map.archive_)(::cereal::make_size_tag(size));
       for (size_t i = 0; i < size; ++i) {
-        std::string key;
-        (*_map.archive_)(key);
-        _map_reader.read(std::string_view(key), InputVarType{_map.archive_});
+        const auto var = InputVarType{_map.archive_};
+        if (const auto err = _reader.read(var, var)) {
+          return err;
+        }
       }
       return std::nullopt;
-    } catch (std::exception& e) {
-      return Error(std::string("Cereal map read error: ") + e.what());
+    } catch (const std::exception& e) {
+      return Error(e.what());
     }
   }
 

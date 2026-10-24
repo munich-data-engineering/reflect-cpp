@@ -443,3 +443,53 @@ struct Reader {
 };
 ```
 
+
+### Optional typed map keys
+
+Backends that preserve map key types provide explicit map-entry APIs for
+writing and reading. They are detected independently by
+`SupportsTypedMapWriter` and `SupportsTypedMapReader`.
+
+A writer defines an `OutputMapEntryType` context and the following methods:
+
+```cpp
+OutputMapEntryType map_entry(OutputMapType* map) const;
+OutputArrayType add_array_to_map_entry(size_t size, OutputMapEntryType*) const;
+OutputObjectType add_object_to_map_entry(size_t size, OutputMapEntryType*) const;
+OutputVarType add_null_to_map_entry(OutputMapEntryType*) const;
+
+template <class T>
+OutputVarType add_value_to_map_entry(const T& value, OutputMapEntryType*) const;
+
+// Additionally required for schemaful writers:
+OutputMapType add_map_to_map_entry(size_t size, OutputMapEntryType*) const;
+OutputUnionType add_union_to_map_entry(OutputMapEntryType*) const;
+```
+
+Schemaless writers use `OutputObjectType*` instead of `OutputMapType*` for
+`map_entry`. The map is already open: `MapParser` uses the normal map header
+for schemaful backends, or the object header for schemaless backends, and closes
+it after all entries. For each entry, it creates a context and passes it through
+`Parent::MapEntry` to the ordinary key and value parsers, in that order.
+The context does not introduce an array or a pair-length prefix. Streaming
+backends can use an empty context; other backends can retain their entry state
+in it. The `add_*_to_map_entry` methods emit only the requested key or value.
+
+The corresponding reader provides:
+
+```cpp
+template <class MapReader>
+std::optional<Error> read_typed_map(const MapReader& reader,
+                                  const InputMapType& map) const noexcept;
+```
+
+Schemaless readers use `InputObjectType` instead of `InputMapType`. For each
+entry, call `reader.read(key, value)` with two `InputVarType` values and return
+immediately if it returns an error. The shared `TypedMapReader` parses the key
+before the value, so sequential archives may pass two handles to the same
+archive. Backend traversal handles the map entry count and boundaries.
+
+Schemaful readers can provide either `read_map` for string keys or
+`read_typed_map` for typed keys. They do not need to implement both. Backends
+without the typed-map interfaces retain string-key serialization. Objects
+representing struct fields continue to use their existing field-name behavior.

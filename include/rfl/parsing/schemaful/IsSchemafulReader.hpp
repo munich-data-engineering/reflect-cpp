@@ -7,6 +7,7 @@
 #include <variant>
 
 #include "../../Result.hpp"
+#include "../SupportsTypedMapReader.hpp"
 
 namespace rfl::parsing::schemaful {
 
@@ -58,7 +59,9 @@ concept IsSchemafulReader =
       /// A schemaful reader needs to differentiate between objects, for which
       /// the field names are known at compile time and maps, for which the
       /// field names are not known at compile time.
-      { r.read_map(map_reader, m) } -> std::same_as<std::optional<Error>>;
+      requires SupportsTypedMapReader<R, typename R::InputMapType> || requires {
+        { r.read_map(map_reader, m) } -> std::same_as<std::optional<Error>>;
+      };
 
       /// A schemaful reader can read fields by order and does not have to
       /// compare strings - the correct order of the fields is guaranteed by the

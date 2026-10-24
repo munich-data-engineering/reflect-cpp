@@ -184,6 +184,18 @@ struct Reader {
     return std::nullopt;
   }
 
+  /// Reads native map entries without converting keys to field names.
+  template <class MapReader>
+  std::optional<Error> read_typed_map(
+      const MapReader& _reader, const InputObjectType& _map) const noexcept {
+    for (uint32_t i = 0; i < _map.size; ++i) {
+      if (const auto err = _reader.read(_map.ptr[i].key, _map.ptr[i].val)) {
+        return err;
+      }
+    }
+    return std::nullopt;
+  }
+
   /**
    * @brief Reads all fields of a msgpack object using a provided reader.
    * @tparam ObjectReader The type of the object reader.

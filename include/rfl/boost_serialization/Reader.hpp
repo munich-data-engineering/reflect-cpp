@@ -155,24 +155,20 @@ struct Reader {
     return std::nullopt;
   }
 
-  /// Reads all key-value pairs from a map using the provided map reader.
-  /// Keys are read as strings from the archive.
-  /// @tparam MapReader The type of reader that processes individual map entries
-  /// @param _map_reader The reader object that processes each key-value pair
-  /// @param _map The map structure containing size information
-  /// @return std::nullopt on success, or an Error if reading fails
+  /// Reads keys and values directly from the archive in sequence.
   template <class MapReader>
-  std::optional<Error> read_map(const MapReader& _map_reader,
-                                const InputMapType& _map) const noexcept {
+  std::optional<Error> read_typed_map(const MapReader& _reader,
+                                      const InputMapType& _map) const noexcept {
     try {
-      for (size_t i = 0; i < _map.size; ++i) {
-        std::string key;
-        *_map.ar >> key;
-        auto var = InputVarType{_map.ar};
-        _map_reader.read(std::string_view(key), var);
+      const auto size = _map.size;
+      for (size_t i = 0; i < size; ++i) {
+        const auto var = InputVarType{_map.ar};
+        if (const auto err = _reader.read(var, var)) {
+          return err;
+        }
       }
       return std::nullopt;
-    } catch (std::exception& e) {
+    } catch (const std::exception& e) {
       return Error(e.what());
     }
   }

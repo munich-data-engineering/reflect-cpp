@@ -26,6 +26,31 @@ class RFL_API Writer {
   using OutputObjectType = MsgpackOutputObject;
   using OutputVarType = MsgpackOutputVar;
 
+  /// A context for writing a typed map entry's key, then its value.
+  struct OutputMapEntryType {};
+
+  OutputMapEntryType map_entry(OutputObjectType*) const { return {}; }
+
+  OutputArrayType add_array_to_map_entry(const size_t _size,
+                                         OutputMapEntryType*) const {
+    return array_as_root(_size);
+  }
+
+  OutputObjectType add_object_to_map_entry(const size_t _size,
+                                           OutputMapEntryType*) const {
+    return object_as_root(_size);
+  }
+
+  template <class T>
+  OutputVarType add_value_to_map_entry(const T& _var,
+                                       OutputMapEntryType*) const {
+    return new_value(_var);
+  }
+
+  OutputVarType add_null_to_map_entry(OutputMapEntryType*) const {
+    return null_as_root();
+  }
+
   Writer(msgpack_packer* _pk);
 
   ~Writer();
