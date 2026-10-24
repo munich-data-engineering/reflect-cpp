@@ -3,6 +3,7 @@
 
 #include <array>
 #include <map>
+#include <optional>
 #include <type_traits>
 
 #include "../Ref.hpp"
@@ -45,29 +46,36 @@ struct ParserArray {
    */
   static Result<std::array<T, _size>> read(const R& _r,
                                            const InputVarType& _var) noexcept {
-    const auto parse =
-        [&](const InputArrayType& _arr) -> Result<std::array<T, _size>> {
-      alignas(
-          std::array<T, _size>) unsigned char buf[sizeof(std::array<T, _size>)];
-      auto ptr = internal::ptr_cast<std::array<T, _size>*>(&buf);
-      const auto array_reader =
-          ArrayReader<R, W, ProcessorsType, T, _size>(&_r, ptr);
-      auto err = _r.read_array(array_reader, _arr);
-      if (err) {
-        call_destructors_on_array_where_necessary(array_reader.num_set(), ptr);
-        return error(*err);
+    alignas(
+        std::array<T, _size>) unsigned char buf[sizeof(std::array<T, _size>)];
+    auto ptr = internal::ptr_cast<std::array<T, _size>*>(&buf);
+    const auto array_reader =
+        ArrayReader<R, W, ProcessorsType, T, _size>(&_r, ptr);
+    auto err = [&]() -> std::optional<Error> {
+      if constexpr (requires {
+                      _r.template read_fixed_array<_size>(array_reader, _var);
+                    }) {
+        return _r.template read_fixed_array<_size>(array_reader, _var);
+      } else {
+        const auto arr = _r.to_array(_var);
+        if (!arr) {
+          return arr.error();
+        }
+        return _r.read_array(array_reader, *arr);
       }
-      err = array_reader.check_size();
-      if (err) {
-        call_destructors_on_array_where_necessary(array_reader.num_set(), ptr);
-        return error(*err);
-      }
-      auto result = Result<std::array<T, _size>>(std::move(*ptr));
+    }();
+    if (err) {
       call_destructors_on_array_where_necessary(array_reader.num_set(), ptr);
-      return result;
-    };
-
-    return _r.to_array(_var).and_then(parse);
+      return error(*err);
+    }
+    err = array_reader.check_size();
+    if (err) {
+      call_destructors_on_array_where_necessary(array_reader.num_set(), ptr);
+      return error(*err);
+    }
+    auto result = Result<std::array<T, _size>>(std::move(*ptr));
+    call_destructors_on_array_where_necessary(array_reader.num_set(), ptr);
+    return result;
   }
 
   /**
@@ -80,7 +88,7 @@ struct ParserArray {
   template <class P>
   static void write(const W& _w, const std::array<T, _size>& _arr,
                     const P& _parent) {
-    auto arr = ParentType::add_array(_w, _size, _parent);
+    auto arr = ParentType::add_fixed_array(_w, _size, _parent);
     const auto new_parent = typename ParentType::Array{&arr};
     for (const auto& e : _arr) {
       Parser<R, W, std::remove_cvref_t<T>, ProcessorsType>::write(_w, e,

@@ -14,6 +14,7 @@
 #include "../Result.hpp"
 #include "../always_false.hpp"
 #include "../internal/is_literal.hpp"
+#include "../parsing/read_array_elements.hpp"
 #include "../parsing/schemaful/IsSchemafulReader.hpp"
 
 namespace rfl::yas {
@@ -119,20 +120,22 @@ struct Reader {
   std::optional<Error> read_array(const ArrayReader& _array_reader,
                                   const InputArrayType& _arr) const noexcept {
     try {
-      std::size_t size;
+      size_t size;
       (*_arr.ar) & size;
-      if constexpr (requires { _array_reader.reserve(size); }) {
-        if (const auto err = _array_reader.reserve(size)) {
-          return err;
-        }
-      }
-      for (std::size_t i = 0; i < size; ++i) {
-        const auto err = _array_reader.read(InputVarType{_arr.ar});
-        if (err) {
-          return err;
-        }
-      }
-      return std::nullopt;
+      return parsing::read_array_elements(_array_reader, InputVarType{_arr.ar},
+                                          size);
+    } catch (std::exception& e) {
+      return Error(std::string("yas array read error: ") + e.what());
+    }
+  }
+
+  /// Reads exactly the compile-time extent without consuming a length prefix.
+  template <size_t _size, class ArrayReader>
+  std::optional<Error> read_fixed_array(
+      const ArrayReader& _array_reader,
+      const InputVarType& _var) const noexcept {
+    try {
+      return parsing::read_array_elements(_array_reader, _var, _size);
     } catch (std::exception& e) {
       return Error(std::string("yas array read error: ") + e.what());
     }

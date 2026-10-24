@@ -54,6 +54,36 @@ class Writer {
   /// @return An OutputArrayType
   OutputArrayType array_as_root(const size_t _size) const;
 
+  /// Fixed-size arrays store only their elements; parent metadata is retained.
+  OutputArrayType fixed_array_as_root(const size_t /*_size*/) const {
+    return OutputArrayType{};
+  }
+
+  OutputArrayType add_fixed_array_to_array(const size_t /*_size*/,
+                                           OutputArrayType* /*_parent*/) const {
+    return OutputArrayType{};
+  }
+
+  OutputArrayType add_fixed_array_to_object(
+      const std::string_view& /*_name*/, const size_t /*_size*/,
+      OutputObjectType* /*_parent*/) const {
+    return OutputArrayType{};
+  }
+
+  OutputArrayType add_fixed_array_to_map(const std::string_view& _name,
+                                         const size_t /*_size*/,
+                                         OutputMapType* /*_parent*/) const {
+    add_string_view(_name);
+    return OutputArrayType{};
+  }
+
+  OutputArrayType add_fixed_array_to_union(const size_t _index,
+                                           const size_t /*_size*/,
+                                           OutputUnionType* /*_parent*/) const {
+    (*archive_)(_index);
+    return OutputArrayType{};
+  }
+
   /// Creates a map as the root element.
   /// Writes the size tag to the archive first.
   /// @param _size The number of entries in the map

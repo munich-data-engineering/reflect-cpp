@@ -57,6 +57,36 @@ struct Writer {
     return OutputArrayType{ar_};
   }
 
+  /// Fixed-size arrays store only their elements; parent metadata is retained.
+  OutputArrayType fixed_array_as_root(const size_t /*_size*/) const {
+    return OutputArrayType{ar_};
+  }
+
+  OutputArrayType add_fixed_array_to_array(const size_t /*_size*/,
+                                           OutputArrayType* /*_parent*/) const {
+    return OutputArrayType{ar_};
+  }
+
+  OutputArrayType add_fixed_array_to_object(
+      const std::string_view& /*_name*/, const size_t /*_size*/,
+      OutputObjectType* /*_parent*/) const {
+    return OutputArrayType{ar_};
+  }
+
+  OutputArrayType add_fixed_array_to_map(const std::string_view& _name,
+                                         const size_t /*_size*/,
+                                         OutputMapType* /*_parent*/) const {
+    add_string_view(_name);
+    return OutputArrayType{ar_};
+  }
+
+  OutputArrayType add_fixed_array_to_union(const size_t _index,
+                                           const size_t /*_size*/,
+                                           OutputUnionType* /*_parent*/) const {
+    (*ar_) & _index;
+    return OutputArrayType{ar_};
+  }
+
   ///
   /// @brief Begins serializing a map as the root object.
   /// @param _size The number of key-value pairs in the map.

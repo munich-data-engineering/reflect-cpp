@@ -58,7 +58,7 @@ struct ParserCArray {
    */
   template <class P>
   static void write(const W& _w, const CArray& _arr, const P& _parent) {
-    auto arr = ParentType::add_array(_w, _size, _parent);
+    auto arr = ParentType::add_fixed_array(_w, _size, _parent);
     const auto new_parent = typename ParentType::Array{&arr};
     for (const auto& e : _arr) {
       Parser<R, W, std::remove_cvref_t<T>, ProcessorsType>::write(_w, e,

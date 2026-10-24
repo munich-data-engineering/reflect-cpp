@@ -81,6 +81,34 @@ struct Parent {
     }
   }
 
+  /// Adds a fixed-size array, omitting its length when the writer supports it.
+  template <class ParentType>
+  static OutputArrayType add_fixed_array(const W& _w, const size_t _size,
+                                         const ParentType& _parent) {
+    using Type = std::remove_cvref_t<ParentType>;
+    if constexpr (!requires { _w.fixed_array_as_root(_size); }) {
+      return add_array(_w, _size, _parent);
+    } else if constexpr (std::is_same_v<Type, Array>) {
+      return _w.add_fixed_array_to_array(_size, _parent.arr_);
+    } else if constexpr (std::is_same_v<Type, Object>) {
+      return _w.add_fixed_array_to_object(_parent.name_, _size, _parent.obj_);
+    } else if constexpr (std::is_same_v<Type, Root>) {
+      return _w.fixed_array_as_root(_size);
+    } else if constexpr (schemaful::IsSchemafulWriter<W>) {
+      if constexpr (std::is_same_v<Type, Map<typename W::OutputMapType>>) {
+        return _w.add_fixed_array_to_map(_parent.name_, _size, _parent.map_);
+      } else if constexpr (std::is_same_v<Type,
+                                          Union<typename W::OutputUnionType>>) {
+        return _w.add_fixed_array_to_union(_parent.index_, _size,
+                                           _parent.union_);
+      } else {
+        static_assert(always_false_v<Type>, "Unsupported option.");
+      }
+    } else {
+      static_assert(always_false_v<Type>, "Unsupported option.");
+    }
+  }
+
   /**
    * @brief Adds a comment to the parent.
    *

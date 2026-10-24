@@ -11,6 +11,7 @@
 #include "../Result.hpp"
 #include "../always_false.hpp"
 #include "../internal/is_literal.hpp"
+#include "../parsing/read_array_elements.hpp"
 
 namespace rfl::boost_serialization {
 
@@ -140,19 +141,16 @@ struct Reader {
   template <class ArrayReader>
   std::optional<Error> read_array(const ArrayReader& _array_reader,
                                   const InputArrayType& _arr) const noexcept {
-    if constexpr (requires { _array_reader.reserve(_arr.size); }) {
-      if (const auto err = _array_reader.reserve(_arr.size)) {
-        return err;
-      }
-    }
-    for (size_t i = 0; i < _arr.size; ++i) {
-      auto var = InputVarType{_arr.ar};
-      const auto err = _array_reader.read(var);
-      if (err) {
-        return err;
-      }
-    }
-    return std::nullopt;
+    return parsing::read_array_elements(_array_reader, InputVarType{_arr.ar},
+                                        _arr.size);
+  }
+
+  /// Reads exactly the compile-time extent without consuming a length prefix.
+  template <size_t _size, class ArrayReader>
+  std::optional<Error> read_fixed_array(
+      const ArrayReader& _array_reader,
+      const InputVarType& _var) const noexcept {
+    return parsing::read_array_elements(_array_reader, _var, _size);
   }
 
   /// Reads all key-value pairs from a map using the provided map reader.
