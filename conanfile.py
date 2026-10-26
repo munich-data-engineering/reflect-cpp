@@ -80,6 +80,7 @@ class ReflectCppConan(ConanFile):
 
     def requirements(self):
         self.requires("ctre/3.9.0", transitive_headers=True)
+        self.requires("enchantum/0.5.0", transitive_headers=True)
         self.requires("yyjson/0.10.0", transitive_headers=True)
         if self.options.with_boost_serialization:
             self.requires("boost/1.90.0", transitive_headers=True)
