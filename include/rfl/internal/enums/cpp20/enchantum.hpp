@@ -29,7 +29,11 @@
 #endif
 #define ENCHANTUM_MAX_RANGE RFL_ENUM_RANGE_MAX
 
+#if __has_include(<enchantum/enchantum.hpp>)
+#include <enchantum/enchantum.hpp>
+#else
 #include "../../../thirdparty/enchantum/enchantum.hpp"
+#endif
 
 #endif
 #endif

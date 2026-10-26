@@ -106,6 +106,15 @@
         }
       ]
     },
+    "enchantum": {
+      "description": "Install enchantum using vcpkg instead of using the bundled version",
+      "dependencies": [
+        {
+          "name": "enchantum",
+          "version>=": "0.5.0"
+        }
+      ]
+    },
     "flexbuffers": {
       "description": "Enable flexbuffers support",
       "dependencies": [
