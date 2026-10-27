@@ -9,6 +9,7 @@
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
 #endif
+#include <jsoncons/json.hpp>
 #include <jsoncons_ext/cbor/cbor_encoder.hpp>
 #ifdef __GNUC__
 #ifndef __clang__
@@ -24,6 +25,7 @@
 #include "../Vectorstring.hpp"
 #include "../always_false.hpp"
 #include "../common.hpp"
+#include "../internal/is_bitset.hpp"
 
 namespace rfl::cbor {
 
@@ -178,6 +180,10 @@ class RFL_API Writer {
   OutputVarType new_value(const T& _var) const {
     if constexpr (std::is_same<std::remove_cvref_t<T>, std::string>()) {
       encoder_->string_value(_var);
+
+    } else if constexpr (internal::is_bitset_v<T>) {
+      // Native jsoncons conversion retains the CBOR base16 semantic tag.
+      jsoncons::json(_var).dump(*encoder_);
 
     } else if constexpr (std::is_same<std::remove_cvref_t<T>,
                                       rfl::Bytestring>() ||

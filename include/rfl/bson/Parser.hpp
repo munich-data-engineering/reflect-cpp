@@ -10,6 +10,15 @@
 
 namespace rfl::parsing {
 
+template <std::size_t N, class ProcessorsType>
+struct Parser<bson::Reader, bson::Writer, std::bitset<N>, ProcessorsType>
+    : ParserBitset<bson::Reader, bson::Writer, N, ProcessorsType,
+                   Bytestring> {};
+
+}  // namespace rfl::parsing
+
+namespace rfl::parsing {
+
 /// bson_oid_t needs to be treated as a special case, otherwise it will be read
 /// as a struct.
 template <class R, class W, class ProcessorsType>

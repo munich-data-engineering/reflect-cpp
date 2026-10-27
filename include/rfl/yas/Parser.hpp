@@ -2,6 +2,7 @@
 #define RFL_YAS_PARSER_HPP_
 
 #include <array>
+#include <bitset>
 #include <cstddef>
 #include <exception>
 #include <string>
@@ -55,6 +56,10 @@ struct Parser<yas::Reader, yas::Writer, std::array<T, N>, ProcessorsType>
     _w.end_array(&arr);
   }
 };
+
+template <std::size_t N, class ProcessorsType>
+struct Parser<yas::Reader, yas::Writer, std::bitset<N>, ProcessorsType>
+    : ParserBasicType<yas::Reader, yas::Writer, std::bitset<N>, ProcessorsType> {};
 
 template <class T, class ProcessorsType>
   requires((std::is_integral_v<T> || std::is_same_v<T, float> ||

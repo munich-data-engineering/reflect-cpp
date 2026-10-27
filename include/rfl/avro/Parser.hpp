@@ -14,6 +14,11 @@
 namespace rfl {
 namespace parsing {
 
+template <std::size_t N, class ProcessorsType>
+struct Parser<avro::Reader, avro::Writer, std::bitset<N>, ProcessorsType>
+    : ParserBitset<avro::Reader, avro::Writer, N, ProcessorsType,
+                   Bytestring> {};
+
 /// AVRO requires us to explicitly set all fields. Because
 /// of that, we require all of the fields and then set them to nullptr, if
 /// necessary.

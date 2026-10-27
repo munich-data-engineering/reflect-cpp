@@ -13,6 +13,7 @@
 #include "../parsing/schema/Type.hpp"
 #include "../parsing/schema/ValidationType.hpp"
 #include "../parsing/schema/make.hpp"
+#include "Parser.hpp"
 #include "Reader.hpp"
 #include "Schema.hpp"
 #include "Writer.hpp"

@@ -2,6 +2,8 @@
 #define RFL_CEREAL_PARSER_HPP_
 
 #include <array>
+#include <bitset>
+#include <cereal/types/bitset.hpp>
 #include <cstddef>
 #include <exception>
 #include <string>
@@ -52,6 +54,13 @@ struct Parser<cereal::Reader, cereal::Writer, std::array<T, N>, ProcessorsType>
     _w.end_array(&arr);
   }
 };
+
+// Delegate to Cereal's tagged, packed encoding through the reader and writer,
+// retaining normal error handling and parent metadata.
+template <std::size_t N, class ProcessorsType>
+struct Parser<cereal::Reader, cereal::Writer, std::bitset<N>, ProcessorsType>
+    : ParserBasicType<cereal::Reader, cereal::Writer, std::bitset<N>,
+                      ProcessorsType> {};
 
 template <class T, class ProcessorsType>
   requires(std::is_arithmetic_v<T> && !std::is_same_v<T, bool> &&

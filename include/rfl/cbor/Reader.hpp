@@ -25,6 +25,7 @@
 #include "../Result.hpp"
 #include "../Vectorstring.hpp"
 #include "../always_false.hpp"
+#include "../internal/is_bitset.hpp"
 #include "../internal/ptr_cast.hpp"
 
 namespace rfl::cbor {
@@ -121,6 +122,13 @@ class Reader {
         return error("Could not cast to string.");
       }
       return _var.val_->as<std::string>();
+
+    } else if constexpr (internal::is_bitset_v<T>) {
+      try {
+        return _var.val_->template as<T>();
+      } catch (const std::exception& e) {
+        return error(e.what());
+      }
 
     } else if constexpr (std::is_same<std::remove_cvref_t<T>,
                                       rfl::Bytestring>() ||

@@ -23,6 +23,7 @@
 #include <type_traits>
 
 #include "../../Box.hpp"
+#include "../../Bytestring.hpp"
 #include "../../NamedTuple.hpp"
 #include "../../Ref.hpp"
 #include "../../Rename.hpp"
@@ -31,6 +32,7 @@
 #include "../../concepts.hpp"
 #include "../../enums.hpp"
 #include "../../internal/StringLiteral.hpp"
+#include "../../internal/bitset.hpp"
 #include "../../internal/has_reflection_type_v.hpp"
 #include "../../internal/ptr_cast.hpp"
 #include "../../named_tuple_t.hpp"
@@ -834,6 +836,40 @@ struct ArrowTypes<T, _s> {
     const auto status = builder.Finish(&res);
     return Ref<arrow::BinaryArray>::make(
         std::static_pointer_cast<arrow::BinaryArray>(res));
+  }
+};
+
+// CSV stores the fixed-length text form; Parquet stores a binary column.
+template <std::size_t N, SerializationType _s>
+struct ArrowTypes<std::bitset<N>, _s>
+    : ArrowTypes<std::conditional_t<_s == SerializationType::csv, std::string,
+                                    Bytestring>,
+                 _s> {
+  using Representation =
+      std::conditional_t<_s == SerializationType::csv, std::string, Bytestring>;
+  using Base = ArrowTypes<Representation, _s>;
+  using ArrayType = typename Base::ArrayType;
+  using BuilderType = typename Base::BuilderType;
+
+  static void add_to_builder(const std::bitset<N>& _bits,
+                             BuilderType* _builder) {
+    if constexpr (_s == SerializationType::csv) {
+      Base::add_to_builder(_bits.to_string(), _builder);
+    } else {
+      Base::add_to_builder(internal::bitset_to_bytes<Bytestring>(_bits),
+                           _builder);
+    }
+  }
+
+  static Result<std::bitset<N>> get_value(const Ref<ArrayType>& _chunk,
+                                          const int64_t _ix) {
+    return Base::get_value(_chunk, _ix).and_then([](const auto& _value) {
+      if constexpr (_s == SerializationType::csv) {
+        return internal::bitset_from_string<N>(_value);
+      } else {
+        return internal::bitset_from_bytes<N>(_value);
+      }
+    });
   }
 };
 

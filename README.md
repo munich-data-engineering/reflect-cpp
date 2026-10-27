@@ -616,6 +616,7 @@ reflect-cpp supports the following containers from the C++ standard library:
 - `std::array`
 - `std::atomic`
 - `std::atomic_flag`
+- `std::bitset`
 - `std::deque`
 - `std::expected`
 - `std::chrono::duration`

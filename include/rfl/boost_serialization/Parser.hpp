@@ -2,8 +2,10 @@
 #define RFL_BOOST_SERIALIZATION_PARSER_HPP_
 
 #include <array>
+#include <bitset>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
+#include <boost/serialization/bitset.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -62,6 +64,14 @@ struct Parser<boost_serialization::Reader<::boost::archive::binary_iarchive>,
     _w.end_array(&arr);
   }
 };
+
+template <class IArchive, class OArchive, std::size_t N, class ProcessorsType>
+struct Parser<boost_serialization::Reader<IArchive>,
+              boost_serialization::Writer<OArchive>, std::bitset<N>,
+              ProcessorsType>
+    : ParserBasicType<boost_serialization::Reader<IArchive>,
+                      boost_serialization::Writer<OArchive>, std::bitset<N>,
+                      ProcessorsType> {};
 
 template <class T, class ProcessorsType>
   requires(std::is_arithmetic_v<T> && !std::is_same_v<T, bool> &&

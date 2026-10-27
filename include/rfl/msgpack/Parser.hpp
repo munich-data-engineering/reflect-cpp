@@ -9,6 +9,11 @@
 namespace rfl {
 namespace parsing {
 
+template <std::size_t N, class ProcessorsType>
+struct Parser<msgpack::Reader, msgpack::Writer, std::bitset<N>, ProcessorsType>
+    : ParserBitset<msgpack::Reader, msgpack::Writer, N, ProcessorsType,
+                   Bytestring> {};
+
 /// msgpack-c requires us to explicitly set the number of fields in advance.
 /// Because of that, we require all of the fields and then set them to nullptr,
 /// if necessary.

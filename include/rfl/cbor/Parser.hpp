@@ -5,6 +5,15 @@
 #include "Reader.hpp"
 #include "Writer.hpp"
 
+namespace rfl::parsing {
+
+template <std::size_t N, class ProcessorsType>
+struct Parser<cbor::Reader, cbor::Writer, std::bitset<N>, ProcessorsType>
+    : ParserBasicType<cbor::Reader, cbor::Writer, std::bitset<N>,
+                      ProcessorsType> {};
+
+}  // namespace rfl::parsing
+
 namespace rfl::cbor {
 
 template <class T, class ProcessorsType>

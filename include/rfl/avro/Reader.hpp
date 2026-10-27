@@ -86,6 +86,9 @@ struct Reader {
       if (err) {
         return error("Could not cast to bytestring.");
       }
+      if (size == 0) {
+        return VectorType{};
+      }
       const auto data = internal::ptr_cast<const ValueType*>(ptr);
       return VectorType(data, data + size);
     } else if constexpr (std::is_same<std::remove_cvref_t<T>, bool>()) {

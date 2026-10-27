@@ -329,10 +329,10 @@ class RFL_API Writer {
 
     } else if constexpr (concepts::MutableContiguousByteContainer<Type>) {
       auto var = _var;
-      if (!var.data()) {
-        return;
-      }
-      int result = avro_value_set_bytes(_val, var.data(), var.size());
+      // Avro requires a non-null pointer even for an empty bytes value.
+      typename Type::value_type empty{};
+      auto* data = var.size() == 0 ? &empty : var.data();
+      int result = avro_value_set_bytes(_val, data, var.size());
       if (result != 0) {
         throw std::runtime_error(
             "Error setting bytestring value: " + std::to_string(result) + ": " +

@@ -6,6 +6,7 @@
 #include "../Processors.hpp"
 #include "../common.hpp"
 #include "../parsing/schema/make.hpp"
+#include "Parser.hpp"
 #include "Reader.hpp"
 #include "Schema.hpp"
 #include "Writer.hpp"

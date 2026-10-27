@@ -13,6 +13,11 @@
 namespace rfl {
 namespace parsing {
 
+template <std::size_t N, class ProcessorsType>
+struct Parser<capnproto::Reader, capnproto::Writer, std::bitset<N>, ProcessorsType>
+    : ParserBitset<capnproto::Reader, capnproto::Writer, N, ProcessorsType,
+                   Bytestring> {};
+
 /// Cap'n proto requires us to explicitly set all fields. Because
 /// of that, we require all of the fields and then set them to nullptr, if
 /// necessary.

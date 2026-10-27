@@ -9,6 +9,11 @@
 
 namespace rfl::parsing {
 
+template <std::size_t N, class ProcessorsType>
+struct Parser<ubjson::Reader, ubjson::Writer, std::bitset<N>, ProcessorsType>
+    : ParserBitset<ubjson::Reader, ubjson::Writer, N, ProcessorsType,
+                   Bytestring> {};
+
 /// UBJSON requires us to explicitly set the number of fields in advance.
 /// Because of that, we require all of the fields and then set them to nullptr,
 /// if necessary.

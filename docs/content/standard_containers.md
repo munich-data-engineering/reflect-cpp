@@ -51,11 +51,18 @@ This will also be represented as follows:
 ```
 
 All other supported standard containers
-(other than `std::variant`, `std::optional`, `std::unique_ptr`, `std::shared_ptr` and `std::expected`)
+(other than `std::bitset`, `std::variant`, `std::optional`, `std::unique_ptr`, `std::shared_ptr` and `std::expected`)
 will be represented as arrays. Containers for which the `value_type`
 is a key-value-pair will be represented as arrays of pairs.
 
 `std::expected` is an exception to this: it is serialized as its value type, or as an object with a single `error` field. Refer to the [std::expected](../expected) section for details.
+
+`std::bitset<N>` uses the native representation in Cereal, YAS, CBOR, and
+Boost.Serialization (packed in the first three, a string in Boost). Other
+binary formats use `ceil(N / 8)` packed bytes: bit zero is the high bit of the
+first byte, and unused low bits are zero. Other formats use exactly `N` binary
+characters in `to_string()` order. The shared parsers reject incorrect lengths,
+invalid characters, and nonzero padding; native adapters retain native validation.
 
 ## Typed map keys in binary formats
 

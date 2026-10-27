@@ -26,6 +26,7 @@
 //#include "../concepts.hpp"
 #include "../internal/wrap_in_rfl_array_t.hpp"
 #include "../parsing/tabular/ArrowReader.hpp"
+#include "../parsing/tabular/make_arrow_schema.hpp"
 #include "Settings.hpp"
 
 namespace rfl::csv {
@@ -57,6 +58,17 @@ Result<internal::wrap_in_rfl_array_t<T>> read(
   convert_options.null_values =
       std::vector<std::string>({_settings.null_string});
   convert_options.strings_can_be_null = true;
+
+  // Preserve textual columns before Arrow's inference can discard leading
+  // zeroes (in particular, the fixed-length text representation of bitsets).
+  using Row = typename T::value_type;
+  const auto schema = parsing::tabular::make_arrow_schema<
+      named_tuple_t<Row, Ps...>, parsing::tabular::SerializationType::csv>();
+  for (const auto& field : schema->fields()) {
+    if (field->type()->Equals(arrow::utf8())) {
+      convert_options.column_types[field->name()] = field->type();
+    }
+  }
 
   auto parse_options = arrow::csv::ParseOptions::Defaults();
   parse_options.delimiter = _settings.delimiter;

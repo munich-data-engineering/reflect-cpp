@@ -5,6 +5,15 @@
 #include "Reader.hpp"
 #include "Writer.hpp"
 
+namespace rfl::parsing {
+
+template <std::size_t N, class ProcessorsType>
+struct Parser<flexbuf::Reader, flexbuf::Writer, std::bitset<N>, ProcessorsType>
+    : ParserBitset<flexbuf::Reader, flexbuf::Writer, N, ProcessorsType,
+                   Bytestring> {};
+
+}  // namespace rfl::parsing
+
 namespace rfl {
 namespace flexbuf {
 

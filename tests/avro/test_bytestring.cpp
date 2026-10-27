@@ -15,4 +15,11 @@ TEST(avro, test_bytestring) {
 
   write_and_read(test);
 }
+
+TEST(avro, test_empty_bytestring) {
+  const auto bytes = rfl::avro::write(TestStruct{});
+  const auto decoded = rfl::avro::read<TestStruct>(bytes);
+  ASSERT_TRUE(decoded) << decoded.error().what();
+  EXPECT_TRUE(decoded->bytestring.empty());
+}
 }  // namespace test_bytestring
