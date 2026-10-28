@@ -17,7 +17,7 @@ struct CapnProtoTypes {
   std::map<std::string, schema::Type> unions_;
 };
 
-const char* MAP_DEFINITION = R"(
+inline const char* MAP_DEFINITION = R"(
 struct Map(Value) {
   entries @0 :List(Entry);
   struct Entry {

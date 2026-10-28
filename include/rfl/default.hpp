@@ -9,7 +9,7 @@ struct Default {};
 
 /// Convenience constant for the Default type.
 /// Can be used like: MyField field = rfl::default_value;
-inline static const auto default_value = Default{};
+inline const auto default_value = Default{};
 
 }  // namespace rfl
 

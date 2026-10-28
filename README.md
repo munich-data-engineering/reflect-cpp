@@ -669,6 +669,33 @@ In addition, it supports the following custom containers:
 
 Finally, it is very easy to extend full support to your own classes, refer to the [documentation](https://munich-data-engineering.github.io/reflect-cpp/docs-readme) for details.
 
+### Module support
+
+reflect-cpp has support for C++20 modules. To enable, pass `REFLECTCPP_BUILD_MODULES` to CMake. You must have CMake 3.28 or higher, and any build system that supports modules (such as Ninja).
+
+```cpp
+import std;
+import rfl;
+
+using std::string;
+
+struct Person {
+    string first_name;
+    string last_name;
+    int age;
+};
+
+const Person homer = Person{
+    .first_name = "Homer",
+    .last_name = "Simpson",
+    .age = 45
+};
+
+// We can now write into and read from a JSON string.
+const string json_string = rfl::json::write(homer);
+auto homer2 = rfl::json::read<Person>(json_string).value();
+```
+
 
 ## Installation
 
