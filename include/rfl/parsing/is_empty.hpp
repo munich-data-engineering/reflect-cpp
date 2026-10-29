@@ -8,6 +8,7 @@
 #include "../internal/is_rename.hpp"
 #include "../internal/is_skip.hpp"
 #include "is_map_like.hpp"
+#include "is_monostate_variant.hpp"
 #include "is_vector_like.hpp"
 
 namespace rfl {
@@ -36,6 +37,8 @@ static bool is_empty(const T& _var) {
     }
   } else if constexpr (internal::is_rename_v<Type>) {
     return is_empty(_var.value());
+  } else if constexpr (is_monostate_variant_v<Type>) {
+    return _var.index() == 0;
   } else if constexpr (is_map_like_v<Type> || is_vector_like_v<Type>) {
     return _var.begin() == _var.end();
   } else {

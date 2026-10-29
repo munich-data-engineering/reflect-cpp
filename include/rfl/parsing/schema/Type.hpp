@@ -19,6 +19,8 @@ namespace rfl::parsing::schema {
 struct RFL_API Type {
   struct Boolean {};
 
+  struct Null {};
+
   struct Bytestring {};
 
   struct Vectorstring {};
@@ -115,9 +117,9 @@ struct RFL_API Type {
   };
 
   using VariantType =
-      rfl::Variant<Boolean, Bytestring, Vectorstring, Int32, Int64, UInt32,
-                   UInt64, Integer, Float, Double, String, AnyOf, DefaultVal,
-                   Deprecated, Description, DescribedLiteral,
+      rfl::Variant<Boolean, Null, Bytestring, Vectorstring, Int32, Int64,
+                   UInt32, UInt64, Integer, Float, Double, String, AnyOf,
+                   DefaultVal, Deprecated, Description, DescribedLiteral,
                    FixedSizeTypedArray, Literal, Object, Optional, Reference,
                    StringMap, Tuple, TypedArray, Validated>;
 

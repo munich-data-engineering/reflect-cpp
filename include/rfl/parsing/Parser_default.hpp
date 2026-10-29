@@ -38,6 +38,7 @@
 #include "ParserEnum.hpp"
 #include "ParserExpected.hpp"
 #include "ParserFilepath.hpp"
+#include "ParserMonostate.hpp"
 #include "ParserOptional.hpp"
 #include "ParserPair.hpp"
 #include "ParserPositional.hpp"
@@ -151,6 +152,9 @@ struct Parser {
 
     } else if constexpr (is_filepath_v<T>) {
       return ParserFilepath<R, W, ProcessorsType>::read(_r, _var);
+
+    } else if constexpr (is_monostate_v<T>) {
+      return ParserMonostate<R, W, ProcessorsType>::read(_r, _var);
 
     } else if constexpr (is_skip_v<T>) {
       using U = std::remove_cvref_t<T>;
@@ -339,6 +343,9 @@ struct Parser {
     } else if constexpr (is_filepath_v<T>) {
       ParserFilepath<R, W, ProcessorsType>::write(_w, _var, _parent);
 
+    } else if constexpr (is_monostate_v<T>) {
+      ParserMonostate<R, W, ProcessorsType>::write(_w, _var, _parent);
+
     } else if constexpr (is_skip_v<T>) {
       using U = std::remove_cvref_t<T>;
       ParserSkip<R, W, typename U::Type, U::skip_serialization_,
@@ -511,6 +518,9 @@ struct Parser {
 
     } else if constexpr (is_filepath_v<U>) {
       return ParserFilepath<R, W, ProcessorsType>::to_schema(_definitions);
+
+    } else if constexpr (is_monostate_v<U>) {
+      return ParserMonostate<R, W, ProcessorsType>::to_schema(_definitions);
 
     } else if constexpr (is_skip_v<U>) {
       return ParserSkip<R, W, typename U::Type, U::skip_serialization_,

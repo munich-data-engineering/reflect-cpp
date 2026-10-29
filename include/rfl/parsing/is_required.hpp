@@ -15,6 +15,7 @@
 #include "../internal/is_rename.hpp"
 #include "../internal/is_short.hpp"
 #include "is_map_like.hpp"
+#include "is_monostate_variant.hpp"
 #include "is_vector_like.hpp"
 
 namespace rfl {
@@ -64,7 +65,7 @@ consteval bool is_required() {
   } else if constexpr (internal::is_short_v<Type>) {
     return is_required<typename Type::Type, _ignore_empty_containers>();
   } else {
-    return !(is_never_required_v<Type> ||
+    return !(is_never_required_v<Type> || is_monostate_variant_v<Type> ||
              (_ignore_empty_containers &&
               (is_vector_like_v<Type> || is_map_like_v<Type>)));
   }
