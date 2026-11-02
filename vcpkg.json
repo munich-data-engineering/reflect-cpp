@@ -1,6 +1,6 @@
 {
   "name": "reflectcpp",
-  "version-string": "0.26.2",
+  "version-string": "0.27.0",
   "dependencies": [
     {
       "name": "vcpkg-cmake"
