@@ -28,4 +28,14 @@ TEST(json, test_literal) {
   write_and_read(bart,
                  R"({"firstName":"Bart","lastName":"Simpson","children":[]})");
 }
+
+TEST(json, test_literal_reports_unsupported_string) {
+  const auto res = rfl::json::read<Person>(
+      R"({"firstName":"Ned","lastName":"Simpson","children":[]})");
+  ASSERT_FALSE(res);
+  EXPECT_EQ(res.error().what(),
+            "Failed to parse field 'firstName': Literal does not support "
+            "string 'Ned'. The following strings are supported: 'Homer', "
+            "'Marge', 'Bart', 'Lisa', 'Maggie'.");
+}
 }  // namespace test_literal

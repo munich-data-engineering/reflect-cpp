@@ -3,6 +3,7 @@
 
 #include <sstream>
 #include <string>
+#include <utility>
 
 #if __has_include(<ctre.hpp>)
 #include <ctre.hpp>
@@ -29,10 +30,10 @@ struct PatternValidator {
   /// Validates that a string matches the regex pattern.
   /// @param _str The string to validate
   /// @return Result containing the string if it matches, or an error if it doesn't
-  static Result<std::string> validate(const std::string& _str) noexcept {
+  static Result<std::string> validate(std::string _str) noexcept {
     if (ctre::match<ctll::fixed_string<_regex.length>{
             ctll::construct_from_pointer, _regex.arr_.data()}>(_str)) {
-      return _str;
+      return std::move(_str);
     } else {
       std::stringstream stream;
       stream << "String '" << _str << "' did not match format '" << _name.str()

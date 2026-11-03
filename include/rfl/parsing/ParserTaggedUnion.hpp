@@ -239,9 +239,16 @@ struct ParserTaggedUnion<R, W, TaggedUnion<_discriminator, AlternativeTypes...>,
   /// Writes a wrapped version of the original object, which contains the tag.
   template <class T, class P>
   static void write_wrapped(const W& _w, const T& _val, const P& _parent) {
-    const auto wrapped = wrap_if_necessary<T>(_val);
-    Parser<R, W, std::remove_cvref_t<decltype(wrapped)>, ProcessorsType>::write(
-        _w, wrapped, _parent);
+    if constexpr (named_tuple_t<T>::Names::template contains<
+                      _discriminator>()) {
+      // The object already contains the tag, so it can be written as it is,
+      // without the copy that wrap_if_necessary would make.
+      Parser<R, W, T, ProcessorsType>::write(_w, _val, _parent);
+    } else {
+      const auto wrapped = wrap_if_necessary<T>(_val);
+      Parser<R, W, std::remove_cvref_t<decltype(wrapped)>,
+             ProcessorsType>::write(_w, wrapped, _parent);
+    }
   }
 
   /// Generates a wrapped version of the original object, which contains the

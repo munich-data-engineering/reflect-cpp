@@ -95,7 +95,6 @@ class ParserRflVariant<R, W, rfl::Variant<AlternativeTypes...>,
     } else {
       std::optional<rfl::Variant<AlternativeTypes...>> result;
       std::vector<std::string> errors;
-      errors.reserve(sizeof...(AlternativeTypes));
       read_variant(
           _r, _var, &result, &errors,
           std::make_integer_sequence<int, sizeof...(AlternativeTypes)>());
@@ -227,7 +226,10 @@ class ParserRflVariant<R, W, rfl::Variant<AlternativeTypes...>,
       if (res) {
         *_result = std::move(*res);
       } else {
-        _errors->emplace_back(std::move(res.error().what()));
+        // Reserve lazily, so that reading an alternative that matches
+        // does not allocate.
+        _errors->reserve(sizeof...(AlternativeTypes));
+        _errors->emplace_back(std::move(res).error().what());
       }
     }
   }
