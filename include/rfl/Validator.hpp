@@ -54,7 +54,8 @@ struct Validator {
   /// Constructs from an rvalue of T (validates the value).
   /// @param _value The value to validate and wrap
   /// @throws std::exception if validation fails
-  Validator(T&& _value) : value_(ValidationType::validate(_value).value()) {}
+  Validator(T&& _value)
+      : value_(ValidationType::validate(std::move(_value)).value()) {}
 
   /// Constructs from a const reference to T (validates the value).
   /// @param _value The value to validate and wrap
