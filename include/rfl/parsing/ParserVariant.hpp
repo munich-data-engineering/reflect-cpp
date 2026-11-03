@@ -116,7 +116,6 @@ class ParserVariant<R, W, std::variant<AlternativeTypes...>, ProcessorsType> {
     } else {
       std::optional<std::variant<AlternativeTypes...>> result;
       std::vector<std::string> errors;
-      errors.reserve(sizeof...(AlternativeTypes));
       read_variant(
           _r, _var, &result, &errors,
           std::make_integer_sequence<int, sizeof...(AlternativeTypes)>());
@@ -269,7 +268,10 @@ class ParserVariant<R, W, std::variant<AlternativeTypes...>, ProcessorsType> {
       if (res) {
         _result->emplace(std::move(*res));
       } else {
-        _errors->emplace_back(res.error().what());
+        // Reserve lazily, so that reading an alternative that matches
+        // does not allocate.
+        _errors->reserve(sizeof...(AlternativeTypes));
+        _errors->emplace_back(std::move(res).error().what());
       }
     }
   }
