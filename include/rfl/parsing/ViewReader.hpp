@@ -3,6 +3,7 @@
 
 #include <array>
 #include <sstream>
+#include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
@@ -14,6 +15,7 @@
 #include "FieldErrors.hpp"
 #include "Parser_base.hpp"
 #include "schemaful/IsSchemafulReader.hpp"
+#include "wrap_error.hpp"
 
 namespace rfl::parsing {
 
@@ -91,6 +93,15 @@ class ViewReader {
     return _current_name == FieldType::name();
   }
 
+  static ErrorDetail::PathSegment to_path_segment(const int _current_index) {
+    return static_cast<size_t>(_current_index);
+  }
+
+  static ErrorDetail::PathSegment to_path_segment(
+      const std::string_view& _current_name) {
+    return std::string(_current_name);
+  }
+
   template <int i>
   static RFL_ALWAYS_INLINE void assign_if_field_matches(
       const R& _r, const auto _current_name_or_index, const auto& _var,
@@ -107,13 +118,10 @@ class ViewReader {
       auto res = Parser<R, W, T, ProcessorsType>::read(_r, _var);
       if (!res) [[unlikely]] {
         constexpr auto name = FieldType::name();
-        std::stringstream stream;
-        stream << "Failed to parse field '" << name
-               << "': " << res.error().what();
         // Reserve lazily to avoid error-vector reallocations while keeping
         // successful reads allocation-free.
         _errors->reserve(size_);
-        _errors->emplace_back(stream.str());
+        _errors->emplace_back(wrap_field_error(name, std::move(res).error()));
         return;
       }
       if constexpr (std::is_pointer_v<OriginalType>) {
@@ -142,10 +150,8 @@ class ViewReader {
     }
     auto res = Parser<R, W, T, ProcessorsType>::read(_r, _var);
     if (!res) [[unlikely]] {
-      std::stringstream stream;
-      stream << "Failed to parse field '" << _current_name
-             << "': " << res.error().what();
-      _errors->emplace_back(stream.str());
+      _errors->emplace_back(
+          wrap_field_error(_current_name, std::move(res).error()));
       return;
     }
     extra_fields->emplace(std::string(_current_name), std::move(*res));
@@ -180,7 +186,8 @@ class ViewReader {
       if (!already_assigned) {
         std::stringstream stream;
         stream << "Value named '" << _current_name_or_index << "' not used.";
-        _errors->emplace_back(stream.str());
+        _errors->emplace_back(make_nested_error(
+            to_path_segment(_current_name_or_index), stream.str()));
       }
     }
   }

@@ -4,9 +4,11 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../Result.hpp"
+#include "../internal/cold.hpp"
 #include "../internal/strings/strings.hpp"
 
 namespace rfl::parsing {
@@ -43,6 +45,31 @@ inline std::string to_single_error_message(
     }
     return stream.str();
   }
+}
+
+/**
+ * @brief Combines a set of errors to a single error.
+ *
+ * @param _errors The vector of errors.
+ * @return An error whose message is the combined error message, as produced by
+ * to_single_error_message, and whose details are the details of all errors.
+ */
+RFL_COLD inline Error to_single_error(std::vector<Error> _errors) {
+  if (_errors.size() == 1) {
+    return std::move(_errors[0]);
+  }
+  std::vector<std::string> messages;
+  messages.reserve(_errors.size());
+  std::vector<ErrorDetail> details;
+  details.reserve(_errors.size());
+  for (auto& err : _errors) {
+    messages.emplace_back(err.what());
+    for (auto& detail : std::move(err).details()) {
+      details.emplace_back(std::move(detail));
+    }
+  }
+  return Error(to_single_error_message(std::move(messages)),
+               std::move(details));
 }
 
 }  // namespace rfl::parsing

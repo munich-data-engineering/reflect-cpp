@@ -698,7 +698,7 @@ struct Parser {
         Parser<R, W, ViewType, ProcessorsType>::read_view(_r, _var, &view);
     if (err) [[unlikely]] {
       call_destructors_where_necessary(set, &view);
-      return error(err->what());
+      return error(*err);
     }
     auto res = Result<T>(std::move(*ptr));
     call_destructors_where_necessary(set, &view);

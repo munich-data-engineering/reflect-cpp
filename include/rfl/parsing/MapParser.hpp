@@ -96,7 +96,7 @@ struct MapParser {
       }
       return map;
     } else {
-      std::vector<std::string> errors;
+      std::vector<Error> errors;
       const auto map_reader =
           MapReader<R, W, MapType, ProcessorsType>(&_r, &map, &errors);
       if constexpr (schemaful::IsSchemafulReader<R>) {
@@ -111,7 +111,7 @@ struct MapParser {
         }
       }
       if (errors.size() != 0) {
-        return error(to_single_error_message(errors));
+        return error(to_single_error(std::move(errors)));
       }
       return map;
     }

@@ -13,6 +13,7 @@
 #include "is_inplace_vector.hpp"
 #include "is_map_like.hpp"
 #include "is_set_like.hpp"
+#include "wrap_error.hpp"
 
 namespace rfl::parsing {
 
@@ -41,7 +42,8 @@ class VectorReader {
    * @param _r The reader to use.
    * @param _vec The vector to read into.
    */
-  VectorReader(const R* _r, VecType* _vec) : r_(_r), vec_(_vec) {}
+  VectorReader(const R* _r, VecType* _vec)
+      : num_inserted_(0), r_(_r), vec_(_vec) {}
 
   ~VectorReader() = default;
 
@@ -67,10 +69,13 @@ class VectorReader {
   RFL_ALWAYS_INLINE std::optional<Error> read(const InputVarType& _var) const {
     auto res = Parser<R, W, ParsedType, ProcessorsType>::read(*r_, _var);
     if (!res) {
-      return std::move(res).error();
+      // The message stays as it is, but the index of the element becomes
+      // part of the path.
+      return wrap_error("", index(), std::move(res).error());
     }
     if constexpr (is_map_like_v<VecType> || is_set_like_v<VecType>) {
       vec_->insert(std::move(*res));
+      ++num_inserted_;
     } else if constexpr (is_inplace_vector_v<VecType>) {
       if (!vec_->try_emplace_back(std::move(*res))) {
         return Error("Too many elements, capacity is " +
@@ -83,6 +88,20 @@ class VectorReader {
   }
 
  private:
+  /// Returns the index of the element that is currently being read.
+  size_t index() const {
+    if constexpr (is_map_like_v<VecType> || is_set_like_v<VecType>) {
+      // Inserting a duplicate does not change the size of a map or set.
+      return num_inserted_;
+    } else {
+      return vec_->size();
+    }
+  }
+
+ private:
+  /// The number of elements inserted into a map or set so far.
+  mutable size_t num_inserted_;
+
   /// The underlying reader.
   const R* r_;
 

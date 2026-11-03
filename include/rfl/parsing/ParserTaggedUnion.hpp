@@ -19,6 +19,7 @@
 #include "schemaful/IsSchemafulReader.hpp"
 #include "schemaful/IsSchemafulWriter.hpp"
 #include "tagged_union_wrapper_no_ptr.hpp"
+#include "wrap_error.hpp"
 
 namespace rfl::parsing {
 
@@ -182,13 +183,12 @@ struct ParserTaggedUnion<R, W, TaggedUnion<_discriminator, AlternativeTypes...>,
             std::move(_val));
       };
 
-      const auto embellish_error = [&](auto&& _e) {
+      const auto embellish_error = [&](Error _e) {
         std::stringstream stream;
         stream << "Could not parse tagged union with "
                   "discriminator "
-               << _discriminator.str() << " '" << _disc_value
-               << "': " << _e.what();
-        return Error(stream.str());
+               << _discriminator.str() << " '" << _disc_value << "': ";
+        return wrap_error(stream.str(), std::move(_e));
       };
 
       using T = tagged_union_wrapper_no_ptr_t<std::invoke_result_t<
