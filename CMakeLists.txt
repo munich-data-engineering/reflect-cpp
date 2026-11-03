@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.23)
+cmake_minimum_required(VERSION 3.28)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -27,6 +27,7 @@ option(REFLECTCPP_BOOST_SERIALIZATION "Enable Boost.Serialization support" ${REF
 option(REFLECTCPP_BUILD_BENCHMARKS "Build benchmarks" OFF)
 option(REFLECTCPP_BUILD_TESTS "Build tests" OFF)
 option(REFLECTCPP_CHECK_HEADERS "Make sure that all headers are self-contained" OFF)
+option(REFLECTCPP_BUILD_MODULES "Build reflectcpp as a C++ module" OFF)
 
 option(REFLECTCPP_USE_BUNDLED_DEPENDENCIES "Use the bundled dependencies" ON)
 
@@ -480,13 +481,16 @@ set_target_properties(reflectcpp PROPERTIES LINKER_LANGUAGE CXX)
 target_sources(reflectcpp PRIVATE ${REFLECT_CPP_SOURCES})
 target_precompile_headers(reflectcpp PRIVATE [["rfl.hpp"]] <iostream> <string> <functional>)
 
-if (REFLECTCPP_BUILD_TESTS)
+if (REFLECTCPP_BUILD_MODULES)
+    add_subdirectory(src/modules)
+endif()
+
+if (REFLECTCPP_BUILD_TESTS AND NOT REFLECTCPP_BUILD_MODULES)
     add_library(reflectcpp_tests_crt INTERFACE)
     target_link_libraries(reflectcpp_tests_crt INTERFACE reflectcpp GTest::gtest_main)
-
+	
     enable_testing()
     find_package(GTest CONFIG REQUIRED)
-    add_subdirectory(tests)
 endif ()
 
 if (REFLECTCPP_BUILD_BENCHMARKS)
@@ -527,6 +531,7 @@ if(REFLECTCPP_CHECK_HEADERS)
         endif()
     endforeach()
 endif()
+
 
 if (REFLECTCPP_INSTALL)
     include(GNUInstallDirs)

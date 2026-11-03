@@ -130,3 +130,49 @@ jobs:
           ./build/benchmarks/json/reflect-cpp-json-benchmarks --benchmark_filter=canada >> $GITHUB_STEP_SUMMARY
           ./build/benchmarks/json/reflect-cpp-json-benchmarks --benchmark_filter=licenses >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+
+  linux-modules:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: gcc
+            compiler-version: 15
+          - compiler: llvm
+            compiler-version: 19
+    name: "linux modules (${{ matrix.compiler }}-${{ matrix.compiler-version }})"
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Install compiler and dependencies
+        run: |
+          sudo apt update
+          if [[ "${{ matrix.compiler }}" == "gcc" ]]; then
+            sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+            sudo apt update
+            sudo apt install -y g++-15 ninja-build
+          else
+            sudo apt install -y clang-19 ninja-build
+          fi
+      - name: Run vcpkg
+        uses: lukka/run-vcpkg@v11
+      - name: Compile modules
+        run: |
+          if [[ "${{ matrix.compiler }}" == "gcc" ]]; then
+            export CC=gcc-15
+            export CXX=g++-15
+          else
+            export CC=clang-19
+            export CXX=clang++-19
+          fi
+          $CXX --version
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_CXX_STANDARD=23 \
+            -DREFLECTCPP_BUILD_MODULES=ON \
+            -DREFLECTCPP_BUILD_TESTS=ON \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j4
