@@ -43,4 +43,20 @@ TEST(json, test_validator_copies_nothing_when_reading) {
   EXPECT_EQ(CopyCounter::copies, 0);
 }
 
+TEST(json, test_validator_copies_nothing_when_moved_in) {
+  CopyCounter::copies = 0;
+  auto elements = std::vector<Element>(3);
+  const auto res = Elements::from_value(std::move(elements));
+  ASSERT_TRUE(res) << res.error().what();
+  EXPECT_EQ(CopyCounter::copies, 0);
+}
+
+TEST(json, test_validator_reports_error_when_reading) {
+  const auto res = rfl::json::read<Container>(R"({"elements":[]})");
+  ASSERT_FALSE(res);
+  EXPECT_EQ(res.error().what(),
+            "Failed to parse field 'elements': Size validation failed: Value "
+            "expected to be greater than or equal to 1, but got 0.");
+}
+
 }  // namespace test_validator_copies
