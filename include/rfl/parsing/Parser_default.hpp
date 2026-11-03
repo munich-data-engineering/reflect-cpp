@@ -246,6 +246,10 @@ struct Parser {
             using NT = decltype(_named_tuple);
             if constexpr (internal::HasFromReflectionMethod<T>) {
               return T::from_reflection(std::forward<NT>(_named_tuple));
+            } else if constexpr (internal::is_literal_v<T>) {
+              // Unlike the constructor, from_string does not throw when the
+              // string is not one of the literal's values.
+              return T::from_string(_named_tuple);
             } else if constexpr (internal::is_validator_v<T>) {
               // Unlike the constructor, from_value does not throw when the
               // validation fails, which makes failing much cheaper.
