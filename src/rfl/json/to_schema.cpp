@@ -47,6 +47,11 @@ bool is_optional(const parsing::schema::Type& _t) {
     } else if constexpr (std::is_same_v<T, parsing::schema::Type::Validated>) {
       return is_optional(*_v.type_);
 
+    } else if constexpr (std::is_same_v<T, parsing::schema::Type::AnyOf>) {
+      return !_v.types_.empty() &&
+             rfl::holds_alternative<parsing::schema::Type::Null>(
+                 _v.types_.front().variant_);
+
     } else {
       return std::is_same_v<T, parsing::schema::Type::Optional> ||
              std::is_same_v<T, parsing::schema::Type::DefaultVal>;
@@ -198,6 +203,9 @@ schema::Type type_to_json_schema_type(const parsing::schema::Type& _type,
     using Type = parsing::schema::Type;
     if constexpr (std::is_same<T, Type::Boolean>()) {
       return schema::Type{.value = schema::Type::Boolean{}};
+
+    } else if constexpr (std::is_same<T, Type::Null>()) {
+      return schema::Type{.value = schema::Type::Null{}};
 
     } else if constexpr (std::is_same<T, Type::Int32>() ||
                          std::is_same<T, Type::Int64>() ||
