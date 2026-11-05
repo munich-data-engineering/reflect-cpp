@@ -134,7 +134,7 @@ TEST(json, test_error_details_with_default_if_missing) {
 }
 
 struct Circle {
-  rfl::Validator<double, rfl::Minimum<0.0>> radius;
+  rfl::Validator<int, rfl::Minimum<0>> radius;
 };
 
 struct Square {
@@ -151,7 +151,7 @@ TEST(json, test_error_details_of_tagged_unions_and_variants) {
   const auto result = rfl::json::read<Drawing>(
       R"({"frame":{"shape":"Square"},
           "shapes":[{"shape":"Square","width":1.0},
-                    {"shape":"Circle","radius":-1.0}],
+                    {"shape":"Circle","radius":-1}],
           "id":1.5})");
   ASSERT_FALSE(result);
 
