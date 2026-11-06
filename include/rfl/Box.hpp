@@ -83,9 +83,12 @@ class Box {
   T* get() const { return ptr_.get(); }
 
   /// Copy assignment operator - only available when C == Copyability::COPYABLE.
+  /// Replaces the contained object with a deep copy of the other one. The copy
+  /// is made before the old object is destroyed, so the other Box may be part
+  /// of the object it replaces.
   /// @param other The Box to copy from
   /// @return Reference to this Box
-  Box& operator=(const Box<T>& other) requires (C == Copyability::COPYABLE) {
+  Box& operator=(const Box& other) requires (C == Copyability::COPYABLE) {
     if(this != &other) {
       ptr_ = std::make_unique<T>(*other);
     }
