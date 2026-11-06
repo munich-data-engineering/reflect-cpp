@@ -52,16 +52,15 @@ class Error {
   /// @param _details The individual failures, see details()
   Error(std::string _what, std::vector<ErrorDetail> _details)
       : what_(std::move(_what)),
-        details_(_details.empty()
-                     ? nullptr
-                     : new std::vector<ErrorDetail>(std::move(_details))) {}
+        details_(_details.empty() ? OptionalDetails()
+                                  : OptionalDetails(std::move(_details))) {}
 
   /// Destructor.
   ~Error() = default;
 
   /// Copy constructor.
   /// @param e The error to copy from
-  Error(const Error& e) : what_(e.what_), details_(copy_details(e.details_)) {}
+  Error(const Error& e) = default;
 
   /// Move constructor.
   /// @param e The error to move from
@@ -70,13 +69,7 @@ class Error {
   /// Copy assignment operator.
   /// @param _other The error to copy from
   /// @return Reference to this error
-  Error& operator=(const Error& _other) {
-    if (this != &_other) {
-      what_ = _other.what_;
-      details_ = copy_details(_other.details_);
-    }
-    return *this;
-  }
+  Error& operator=(const Error& _other) = default;
 
   /// Move assignment operator.
   /// @param _other The error to move from
@@ -93,7 +86,7 @@ class Error {
   /// location at which it occurred. An error that was constructed from a
   /// message only is reported as a single failure at the root.
   std::vector<ErrorDetail> details() const& {
-    if (!details_) {
+    if (!details_.has_value()) {
       return {ErrorDetail{.path = {}, .message = what_}};
     }
     return *details_;
@@ -102,35 +95,73 @@ class Error {
   /// Moves the individual failures out of the Error object and leaves it in a
   /// moved from state.
   std::vector<ErrorDetail> details() && {
-    if (!details_) {
+    if (!details_.has_value()) {
       return {ErrorDetail{.path = {}, .message = std::move(what_)}};
     }
     return std::move(*details_);
   }
 
  private:
+  /// Either nothing or a heap-allocated vector of details, deep-copied along
+  /// with the Error. Holding nothing is the common case: it means that the
+  /// Error is just its message, and it does not allocate.
+  ///
   /// Errors are created and destroyed in many places, mostly as part of
   /// rfl::Result. Deleting and copying the details out of line keeps that code
   /// small, which matters for the performance of successful reads.
-  struct DeleteDetails {
-    RFL_COLD void operator()(std::vector<ErrorDetail>* _ptr) const {
-      delete _ptr;
+  class OptionalDetails {
+   public:
+    /// Holds nothing.
+    OptionalDetails() = default;
+
+    /// Holds a heap-allocated vector containing _details.
+    explicit OptionalDetails(std::vector<ErrorDetail>&& _details)
+        : ptr_(new std::vector<ErrorDetail>(std::move(_details))) {}
+
+    /// Holds a copy of the details _other holds, if any.
+    OptionalDetails(const OptionalDetails& _other) : ptr_(copy(_other.ptr_)) {}
+
+    OptionalDetails(OptionalDetails&&) noexcept = default;
+
+    /// Holds a copy of the details _other holds, if any.
+    OptionalDetails& operator=(const OptionalDetails& _other) {
+      ptr_ = copy(_other.ptr_);
+      return *this;
     }
+
+    OptionalDetails& operator=(OptionalDetails&&) noexcept = default;
+
+    bool has_value() const { return ptr_ != nullptr; }
+
+    /// Must only be called if has_value() is true.
+    const std::vector<ErrorDetail>& operator*() const { return *ptr_; }
+
+    /// Must only be called if has_value() is true.
+    std::vector<ErrorDetail>& operator*() { return *ptr_; }
+
+   private:
+    struct Delete {
+      RFL_COLD void operator()(std::vector<ErrorDetail>* _ptr) const {
+        delete _ptr;
+      }
+    };
+
+    using Ptr = std::unique_ptr<std::vector<ErrorDetail>, Delete>;
+
+    RFL_COLD static Ptr copy(const Ptr& _ptr) {
+      return _ptr ? Ptr(new std::vector<ErrorDetail>(*_ptr)) : nullptr;
+    }
+
+    Ptr ptr_;
   };
-
-  using DetailsPtr = std::unique_ptr<std::vector<ErrorDetail>, DeleteDetails>;
-
-  RFL_COLD static DetailsPtr copy_details(const DetailsPtr& _ptr) {
-    return _ptr ? DetailsPtr(new std::vector<ErrorDetail>(*_ptr)) : nullptr;
-  }
 
  private:
   /// Documents what went wrong
   std::string what_;
 
-  /// The individual failures summarized by what_. Null, unless what_ was
-  /// assembled from failures at nested locations.
-  DetailsPtr details_;
+  /// The individual failures summarized by what_. Holds nothing, unless what_
+  /// was assembled from failures at nested locations.
+  OptionalDetails details_;
 };
 
 }  // namespace rfl::internal
