@@ -50,7 +50,7 @@ struct FieldVariantParser {
               &_r, &field_variant);
       auto err = _r.read_object(reader, _obj);
       if (err) {
-        return error(*err);
+        return error(std::move(*err));
       }
       if (!field_variant) {
         return error(

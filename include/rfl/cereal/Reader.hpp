@@ -159,7 +159,7 @@ struct Reader {
       (*_map.archive_)(::cereal::make_size_tag(size));
       for (size_t i = 0; i < size; ++i) {
         const auto var = InputVarType{_map.archive_};
-        if (const auto err = _reader.read(var, var)) {
+        if (auto err = _reader.read(var, var)) {
           return err;
         }
       }

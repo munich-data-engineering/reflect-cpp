@@ -13,6 +13,7 @@
 #include "../internal/no_extra_fields_v.hpp"
 #include "FieldErrors.hpp"
 #include "Parser_base.hpp"
+#include "wrap_error.hpp"
 
 namespace rfl::parsing {
 
@@ -83,10 +84,7 @@ class ViewReaderWithDefault {
       *_already_assigned = true;
       auto res = Parser<R, W, T, ProcessorsType>::read(_r, _var);
       if (!res) {
-        std::stringstream stream;
-        stream << "Failed to parse field '" << std::string(name)
-               << "': " << res.error().what();
-        _errors->emplace_back(stream.str());
+        _errors->emplace_back(wrap_field_error(name, std::move(res).error()));
         return;
       }
       if constexpr (std::is_pointer_v<OriginalType>) {
@@ -109,10 +107,8 @@ class ViewReaderWithDefault {
         std::remove_pointer_t<typename ExtraFieldsType::Type>>;
     auto res = Parser<R, W, T, ProcessorsType>::read(_r, _var);
     if (!res) {
-      std::stringstream stream;
-      stream << "Failed to parse field '" << _current_name
-             << "': " << res.error().what();
-      _errors->emplace_back(stream.str());
+      _errors->emplace_back(
+          wrap_field_error(_current_name, std::move(res).error()));
       return;
     }
     extra_fields->emplace(std::string(_current_name), std::move(*res));
@@ -141,7 +137,8 @@ class ViewReaderWithDefault {
         stream << "Value named '" << std::string(_current_name)
                << "' not used. Remove the rfl::NoExtraFields processor or add "
                   "rfl::ExtraFields to avoid this error message.";
-        _errors->emplace_back(stream.str());
+        _errors->emplace_back(
+            make_nested_error(std::string(_current_name), stream.str()));
       }
     }
   }

@@ -1,9 +1,35 @@
 #ifndef RFL_INTERNAL_ERROR_HPP_
 #define RFL_INTERNAL_ERROR_HPP_
 
+#include <cstddef>
+#include <memory>
 #include <string>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include "cold.hpp"
 
 namespace rfl::internal {
+
+/// Describes a single failure contained in an Error: where it occurred and
+/// what went wrong.
+struct ErrorDetail {
+  /// A field name or an array index.
+  using PathSegment = std::variant<std::string, size_t>;
+
+  /// The location of the failure, starting from the root of the value being
+  /// read. Field names are spelled as they appear in the input, that is, after
+  /// processors such as rfl::SnakeCaseToCamelCase have been applied. An empty
+  /// path refers to the root value itself.
+  std::vector<PathSegment> path;
+
+  /// The message describing the failure, without the "Failed to parse field
+  /// '...': " prefixes that Error::what() contains for every level of nesting.
+  std::string message;
+
+  bool operator==(const ErrorDetail&) const = default;
+};
 
 /// Defines the error class to be returned when something went wrong.
 /// This is used throughout reflect-cpp for error handling.
@@ -19,6 +45,15 @@ class Error {
   /// Constructs an error with a message (move).
   /// @param _what The error message describing what went wrong (will be moved)
   Error(std::string&& _what) : what_(std::move(_what)) {}
+
+  /// Constructs an error with a message and the individual failures it
+  /// summarizes.
+  /// @param _what The error message describing what went wrong
+  /// @param _details The individual failures, see details()
+  Error(std::string _what, std::vector<ErrorDetail> _details)
+      : what_(std::move(_what)),
+        details_(_details.empty() ? OptionalDetails()
+                                  : OptionalDetails(std::move(_details))) {}
 
   /// Destructor.
   ~Error() = default;
@@ -47,9 +82,86 @@ class Error {
   /// from state
   std::string what() && { return std::move(what_); }
 
+  /// Returns the individual failures summarized by what(), each with the
+  /// location at which it occurred. An error that was constructed from a
+  /// message only is reported as a single failure at the root.
+  std::vector<ErrorDetail> details() const& {
+    if (!details_.has_value()) {
+      return {ErrorDetail{.path = {}, .message = what_}};
+    }
+    return *details_;
+  }
+
+  /// Moves the individual failures out of the Error object and leaves it in a
+  /// moved from state.
+  std::vector<ErrorDetail> details() && {
+    if (!details_.has_value()) {
+      return {ErrorDetail{.path = {}, .message = std::move(what_)}};
+    }
+    return std::move(*details_);
+  }
+
+ private:
+  /// Either nothing or a heap-allocated vector of details, deep-copied along
+  /// with the Error. Holding nothing is the common case: it means that the
+  /// Error is just its message, and it does not allocate.
+  ///
+  /// Errors are created and destroyed in many places, mostly as part of
+  /// rfl::Result. Deleting and copying the details out of line keeps that code
+  /// small, which matters for the performance of successful reads.
+  class OptionalDetails {
+   public:
+    /// Holds nothing.
+    OptionalDetails() = default;
+
+    /// Holds a heap-allocated vector containing _details.
+    explicit OptionalDetails(std::vector<ErrorDetail>&& _details)
+        : ptr_(new std::vector<ErrorDetail>(std::move(_details))) {}
+
+    /// Holds a copy of the details _other holds, if any.
+    OptionalDetails(const OptionalDetails& _other) : ptr_(copy(_other.ptr_)) {}
+
+    OptionalDetails(OptionalDetails&&) noexcept = default;
+
+    /// Holds a copy of the details _other holds, if any.
+    OptionalDetails& operator=(const OptionalDetails& _other) {
+      ptr_ = copy(_other.ptr_);
+      return *this;
+    }
+
+    OptionalDetails& operator=(OptionalDetails&&) noexcept = default;
+
+    bool has_value() const { return ptr_ != nullptr; }
+
+    /// Must only be called if has_value() is true.
+    const std::vector<ErrorDetail>& operator*() const { return *ptr_; }
+
+    /// Must only be called if has_value() is true.
+    std::vector<ErrorDetail>& operator*() { return *ptr_; }
+
+   private:
+    struct Delete {
+      RFL_COLD void operator()(std::vector<ErrorDetail>* _ptr) const {
+        delete _ptr;
+      }
+    };
+
+    using Ptr = std::unique_ptr<std::vector<ErrorDetail>, Delete>;
+
+    RFL_COLD static Ptr copy(const Ptr& _ptr) {
+      return _ptr ? Ptr(new std::vector<ErrorDetail>(*_ptr)) : nullptr;
+    }
+
+    Ptr ptr_;
+  };
+
  private:
   /// Documents what went wrong
   std::string what_;
+
+  /// The individual failures summarized by what_. Holds nothing, unless what_
+  /// was assembled from failures at nested locations.
+  OptionalDetails details_;
 };
 
 }  // namespace rfl::internal

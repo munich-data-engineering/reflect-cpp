@@ -91,27 +91,27 @@ struct MapParser {
                       R, std::remove_cvref_t<decltype(_obj_or_map)>>) {
       const auto reader =
           TypedMapReader<R, W, MapType, ProcessorsType>{&_r, &map};
-      if (const auto err = _r.read_typed_map(reader, _obj_or_map)) {
-        return error(*err);
+      if (auto err = _r.read_typed_map(reader, _obj_or_map)) {
+        return error(std::move(*err));
       }
       return map;
     } else {
-      std::vector<std::string> errors;
+      std::vector<Error> errors;
       const auto map_reader =
           MapReader<R, W, MapType, ProcessorsType>(&_r, &map, &errors);
       if constexpr (schemaful::IsSchemafulReader<R>) {
-        const auto err = _r.read_map(map_reader, _obj_or_map);
+        auto err = _r.read_map(map_reader, _obj_or_map);
         if (err) {
-          return error(*err);
+          return error(std::move(*err));
         }
       } else {
-        const auto err = _r.read_object(map_reader, _obj_or_map);
+        auto err = _r.read_object(map_reader, _obj_or_map);
         if (err) {
-          return error(*err);
+          return error(std::move(*err));
         }
       }
       if (errors.size() != 0) {
-        return error(to_single_error_message(errors));
+        return error(to_single_error(std::move(errors)));
       }
       return map;
     }

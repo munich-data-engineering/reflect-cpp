@@ -102,7 +102,7 @@ struct Reader {
                                   const InputArrayType& _arr) const noexcept {
     const auto size = yyjson_arr_size(_arr.val_);
     if constexpr (requires { _array_reader.reserve(size); }) {
-      if (const auto err = _array_reader.reserve(size)) {
+      if (auto err = _array_reader.reserve(size)) {
         return err;
       }
     }
@@ -110,7 +110,7 @@ struct Reader {
     yyjson_arr_iter iter;
     yyjson_arr_iter_init(_arr.val_, &iter);
     while ((val = yyjson_arr_iter_next(&iter))) {
-      const auto err = _array_reader.read(InputVarType(val));
+      auto err = _array_reader.read(InputVarType(val));
       if (err) {
         return err;
       }

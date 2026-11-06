@@ -151,12 +151,12 @@ class RFL_API Reader {
   std::optional<Error> read_array(const ArrayReader& _array_reader,
                                   const InputArrayType& _arr) const noexcept {
     if constexpr (requires { _array_reader.reserve(_arr.val_.size()); }) {
-      if (const auto err = _array_reader.reserve(_arr.val_.size())) {
+      if (auto err = _array_reader.reserve(_arr.val_.size())) {
         return err;
       }
     }
     for (auto element : _arr.val_) {
-      const auto err = _array_reader.read(InputVarType{std::move(element)});
+      auto err = _array_reader.read(InputVarType{std::move(element)});
       if (err) {
         return err;
       }

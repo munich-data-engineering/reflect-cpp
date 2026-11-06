@@ -104,12 +104,12 @@ struct Reader {
                                   const InputArrayType& _arr) const noexcept {
     const auto size = _arr.size();
     if constexpr (requires { _array_reader.reserve(size); }) {
-      if (const auto err = _array_reader.reserve(size)) {
+      if (auto err = _array_reader.reserve(size)) {
         return err;
       }
     }
     for (size_t i = 0; i < size; ++i) {
-      const auto err = _array_reader.read(InputVarType(_arr[i]));
+      auto err = _array_reader.read(InputVarType(_arr[i]));
       if (err) {
         return err;
       }

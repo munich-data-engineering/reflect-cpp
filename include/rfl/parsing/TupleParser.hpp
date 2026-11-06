@@ -62,13 +62,13 @@ struct TupleParser {
         if (err) {
           call_destructors_on_tuple_where_necessary(tuple_reader.num_set(),
                                                     ptr);
-          return error(*err);
+          return error(std::move(*err));
         }
         err = tuple_reader.handle_missing_fields();
         if (err) {
           call_destructors_on_tuple_where_necessary(tuple_reader.num_set(),
                                                     ptr);
-          return error(*err);
+          return error(std::move(*err));
         }
         auto res = Result<TupleType>(std::move(*ptr));
         call_destructors_on_tuple_where_necessary(tuple_reader.num_set(), ptr);

@@ -171,12 +171,12 @@ struct Reader {
   std::optional<Error> read_array(const ArrayReader& _array_reader,
                                   const InputArrayType& _arr) const noexcept {
     if constexpr (requires { _array_reader.reserve(_arr.size); }) {
-      if (const auto err = _array_reader.reserve(_arr.size)) {
+      if (auto err = _array_reader.reserve(_arr.size)) {
         return err;
       }
     }
     for (uint32_t i = 0; i < _arr.size; ++i) {
-      const auto err = _array_reader.read(_arr.ptr[i]);
+      auto err = _array_reader.read(_arr.ptr[i]);
       if (err) {
         return err;
       }
@@ -189,7 +189,7 @@ struct Reader {
   std::optional<Error> read_typed_map(
       const MapReader& _reader, const InputObjectType& _map) const noexcept {
     for (uint32_t i = 0; i < _map.size; ++i) {
-      if (const auto err = _reader.read(_map.ptr[i].key, _map.ptr[i].val)) {
+      if (auto err = _reader.read(_map.ptr[i].key, _map.ptr[i].val)) {
         return err;
       }
     }

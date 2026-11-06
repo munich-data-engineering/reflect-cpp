@@ -222,7 +222,7 @@ struct Reader {
                    "): " + avro_strerror());
     }
     if constexpr (requires { _array_reader.reserve(size); }) {
-      if (const auto err = _array_reader.reserve(size)) {
+      if (auto err = _array_reader.reserve(size)) {
         return err;
       }
     }
@@ -233,7 +233,7 @@ struct Reader {
         return Error(std::string(__FUNCTION__) + " error(" +
                      std::to_string(res) + "): " + avro_strerror());
       }
-      const auto err = _array_reader.read(InputVarType{&element});
+      auto err = _array_reader.read(InputVarType{&element});
       if (err) {
         return err;
       }

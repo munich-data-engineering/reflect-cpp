@@ -2,6 +2,7 @@
 #define RFL_PARSING_TUPLEREADER_HPP_
 
 #include <sstream>
+#include <string>
 #include <type_traits>
 
 #include "../Result.hpp"
@@ -10,6 +11,7 @@
 #include "AreReaderAndWriter.hpp"
 #include "Parser_base.hpp"
 #include "is_required.hpp"
+#include "wrap_error.hpp"
 
 namespace rfl::parsing {
 
@@ -74,8 +76,9 @@ class TupleReader {
 
         if constexpr (_all_required ||
                       is_required<CurrentType, _ignore_empty_containers>()) {
-          *_err = Error("Field " + std::to_string(_i) +
-                        " was required, but missing.");
+          *_err = make_nested_error(
+              static_cast<size_t>(_i),
+              "Field " + std::to_string(_i) + " was required, but missing.");
           return;
         } else {
           ::new (&(rfl::get<_i>(*tuple_))) CurrentType();
@@ -99,10 +102,9 @@ class TupleReader {
           move_to(&(rfl::get<_i>(*tuple_)), &(*res));
           ++num_set_;
         } else {
-          std::stringstream stream;
-          stream << "Failed to parse field " << _i << ": "
-                 << res.error().what();
-          *_err = Error(stream.str());
+          *_err =
+              wrap_error("Failed to parse field " + std::to_string(_i) + ": ",
+                         _i, std::move(res).error());
         }
         return;
       }

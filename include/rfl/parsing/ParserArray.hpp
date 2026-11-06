@@ -66,12 +66,12 @@ struct ParserArray {
     }();
     if (err) {
       call_destructors_on_array_where_necessary(array_reader.num_set(), ptr);
-      return error(*err);
+      return error(std::move(*err));
     }
     err = array_reader.check_size();
     if (err) {
       call_destructors_on_array_where_necessary(array_reader.num_set(), ptr);
-      return error(*err);
+      return error(std::move(*err));
     }
     auto result = Result<std::array<T, _size>>(std::move(*ptr));
     call_destructors_on_array_where_necessary(array_reader.num_set(), ptr);
