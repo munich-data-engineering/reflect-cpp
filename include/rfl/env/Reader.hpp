@@ -205,7 +205,7 @@ struct Reader {
       if (is_empty(var)) {
         break;
       }
-      const auto err = _array_reader.read(var);
+      auto err = _array_reader.read(var);
       if (err) {
         return err;
       }

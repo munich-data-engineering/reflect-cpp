@@ -188,7 +188,7 @@ struct Reader {
     if (bson_init_static(&b, doc.data, doc.data_len)) {
       if (bson_iter_init(&iter, &b)) {
         while (bson_iter_next(&iter)) {
-          const auto err = _array_reader.read(to_input_var(&iter));
+          auto err = _array_reader.read(to_input_var(&iter));
           if (err) {
             return err;
           }

@@ -201,7 +201,7 @@ struct Reader {
       const InputArrayType& _arr
   ) const noexcept {
     for (const auto& val : _arr.values) {
-      const auto err = _array_reader.read(
+      auto err = _array_reader.read(
           InputVarType{nullptr, "", val});
       if (err) {
         return err;

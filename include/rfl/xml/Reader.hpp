@@ -171,7 +171,7 @@ struct Reader {
                                   const InputArrayType& _arr) const noexcept {
     const auto name = _arr.node_.name();
     for (auto node = _arr.node_; node; node = node.next_sibling(name)) {
-      const auto err = _array_reader.read(InputVarType(node));
+      auto err = _array_reader.read(InputVarType(node));
       if (err) {
         return err;
       }

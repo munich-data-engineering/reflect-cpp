@@ -51,6 +51,11 @@ inline Unexpected<Error> error(const Error& _err) {
   return Unexpected<Error>(_err);
 }
 
+/// Shorthand for unexpected error.
+inline Unexpected<Error> error(Error&& _err) {
+  return Unexpected<Error>(std::move(_err));
+}
+
 }  // namespace rfl
 
 #ifdef REFLECTCPP_USE_STD_EXPECTED

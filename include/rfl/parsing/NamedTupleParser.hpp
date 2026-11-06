@@ -129,11 +129,11 @@ struct NamedTupleParser {
     auto ptr = internal::ptr_cast<NamedTuple<FieldTypes...>*>(&buf);
     auto view = rfl::to_view(*ptr);
     using ViewType = std::remove_cvref_t<decltype(view)>;
-    const auto [set, err] =
+    auto [set, err] =
         Parser<R, W, ViewType, ProcessorsType>::read_view(_r, _var, &view);
     if (err) [[unlikely]] {
       call_destructors_where_necessary(set, &view);
-      return error(*err);
+      return error(std::move(*err));
     }
     auto res = Result<NamedTuple<FieldTypes...>>(std::move(*ptr));
     call_destructors_where_necessary(set, &view);
@@ -394,14 +394,14 @@ struct NamedTupleParser {
     FieldErrors<ProcessorsType> errors;
     const auto reader = ViewReaderType(&_r, _view, &found, &set, &errors);
     if constexpr (_no_field_names) {
-      const auto err = _r.read_array(reader, _obj_or_arr);
+      auto err = _r.read_array(reader, _obj_or_arr);
       if (err) [[unlikely]] {
-        return std::make_pair(set, err);
+        return std::make_pair(set, std::move(err));
       }
     } else {
-      const auto err = _r.read_object(reader, _obj_or_arr);
+      auto err = _r.read_object(reader, _obj_or_arr);
       if (err) [[unlikely]] {
-        return std::make_pair(set, err);
+        return std::make_pair(set, std::move(err));
       }
     }
     if (!should_stop_on_field_error<ProcessorsType>(errors)) {
@@ -424,12 +424,12 @@ struct NamedTupleParser {
     FieldErrors<ProcessorsType> errors;
     const auto reader = ViewReaderWithDefaultType(&_r, _view, &errors);
     if constexpr (_no_field_names) {
-      const auto err = _r.read_array(reader, _obj_or_arr);
+      auto err = _r.read_array(reader, _obj_or_arr);
       if (err) [[unlikely]] {
         return err;
       }
     } else {
-      const auto err = _r.read_object(reader, _obj_or_arr);
+      auto err = _r.read_object(reader, _obj_or_arr);
       if (err) [[unlikely]] {
         return err;
       }

@@ -694,11 +694,11 @@ struct Parser {
     auto raw_view = to_view(*ptr);
     auto view = ProcessorsType::template process<T>(std::move(raw_view));
     using ViewType = std::remove_cvref_t<decltype(view)>;
-    const auto [set, err] =
+    auto [set, err] =
         Parser<R, W, ViewType, ProcessorsType>::read_view(_r, _var, &view);
     if (err) [[unlikely]] {
       call_destructors_where_necessary(set, &view);
-      return error(*err);
+      return error(std::move(*err));
     }
     auto res = Result<T>(std::move(*ptr));
     call_destructors_where_necessary(set, &view);
@@ -717,11 +717,11 @@ struct Parser {
                      // return the error.
       auto view = ProcessorsType::template process<T>(to_view(t));
       using ViewType = decltype(view);
-      const auto err =
+      auto err =
           Parser<R, W, ViewType, ProcessorsType>::read_view_with_default(
               _r, _var, &view);
       if (err) [[unlikely]] {
-        return error(*err);
+        return error(std::move(*err));
       }
       return t;
     } catch (std::exception& e) {
