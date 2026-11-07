@@ -161,7 +161,7 @@ struct Reader {
       const auto size = _map.size;
       for (size_t i = 0; i < size; ++i) {
         const auto var = InputVarType{_map.ar};
-        if (const auto err = _reader.read(var, var)) {
+        if (auto err = _reader.read(var, var)) {
           return err;
         }
       }

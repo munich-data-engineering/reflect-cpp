@@ -16,12 +16,12 @@ std::optional<Error> read_array_elements(const ArrayReader& _array_reader,
                                          const InputVarType& _var,
                                          const std::size_t _size) {
   if constexpr (requires { _array_reader.reserve(_size); }) {
-    if (const auto err = _array_reader.reserve(_size)) {
+    if (auto err = _array_reader.reserve(_size)) {
       return err;
     }
   }
   for (std::size_t i = 0; i < _size; ++i) {
-    if (const auto err = _array_reader.read(_var)) {
+    if (auto err = _array_reader.read(_var)) {
       return err;
     }
   }

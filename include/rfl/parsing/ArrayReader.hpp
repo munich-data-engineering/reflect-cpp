@@ -3,11 +3,13 @@
 
 #include <array>
 #include <optional>
+#include <string>
 #include <type_traits>
 
 #include "../Result.hpp"
 #include "../internal/is_array.hpp"
 #include "Parser_base.hpp"
+#include "wrap_error.hpp"
 
 namespace rfl::parsing {
 
@@ -62,8 +64,9 @@ class ArrayReader {
     if (res) {
       move_to(&((*array_)[num_set_]), &(*res));
     } else {
-      return Error("Failed to parse element " + std::to_string(num_set_) +
-                   ": " + res.error().what());
+      return wrap_error(
+          "Failed to parse element " + std::to_string(num_set_) + ": ",
+          num_set_, std::move(res).error());
     }
     ++num_set_;
     return std::optional<Error>();

@@ -11,6 +11,7 @@
 #include "../always_false.hpp"
 #include "../internal/has_reflection_type_v.hpp"
 #include "Parser_base.hpp"
+#include "wrap_error.hpp"
 
 namespace rfl::parsing {
 
@@ -30,7 +31,7 @@ class MapReader {
    * @param _map The map to write to.
    * @param _errors The vector to collect errors in.
    */
-  MapReader(const R* _r, MapType* _map, std::vector<std::string>* _errors)
+  MapReader(const R* _r, MapType* _map, std::vector<Error>* _errors)
       : r_(_r), map_(_map), errors_(_errors) {}
 
   ~MapReader() = default;
@@ -47,8 +48,7 @@ class MapReader {
     if (res) {
       map_->emplace(std::move(*res));
     } else {
-      errors_->push_back("Failed to parse field '" + std::string(_name) +
-                         "': " + res.error().what());
+      errors_->emplace_back(wrap_field_error(_name, std::move(res).error()));
     }
   }
 
@@ -122,7 +122,7 @@ class MapReader {
   MapType* map_;
 
   /// Collects any errors we may have come across.
-  std::vector<std::string>* errors_;
+  std::vector<Error>* errors_;
 };
 
 }  // namespace rfl::parsing

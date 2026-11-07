@@ -12,6 +12,7 @@
 namespace rfl {
 
 using Error = rfl::internal::Error;
+using ErrorDetail = rfl::internal::ErrorDetail;
 
 /// To be returned when there is nothing to return, but there might be an error.
 struct Nothing {};
@@ -48,6 +49,11 @@ inline Unexpected<Error> error(std::string&& _what) {
 /// Shorthand for unexpected error.
 inline Unexpected<Error> error(const Error& _err) {
   return Unexpected<Error>(_err);
+}
+
+/// Shorthand for unexpected error.
+inline Unexpected<Error> error(Error&& _err) {
+  return Unexpected<Error>(std::move(_err));
 }
 
 }  // namespace rfl

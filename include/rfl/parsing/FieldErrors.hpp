@@ -3,7 +3,6 @@
 
 #include <cstddef>
 #include <optional>
-#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -19,8 +18,8 @@ class FirstFieldError {
 
   void reserve(std::size_t) {}
 
-  void emplace_back(std::string message) {
-    if (!error_) error_.emplace(std::move(message));
+  void emplace_back(Error _err) {
+    if (!error_) error_.emplace(std::move(_err));
   }
 
   std::optional<Error> error() && { return std::move(error_); }
@@ -30,9 +29,8 @@ class FirstFieldError {
 };
 
 template <class ProcessorsType>
-using FieldErrors =
-    std::conditional_t<internal::fail_fast_v<ProcessorsType>, FirstFieldError,
-                       std::vector<std::string>>;
+using FieldErrors = std::conditional_t<internal::fail_fast_v<ProcessorsType>,
+                                       FirstFieldError, std::vector<Error>>;
 
 template <class ProcessorsType>
 bool should_stop_on_field_error(const FieldErrors<ProcessorsType>& errors) {

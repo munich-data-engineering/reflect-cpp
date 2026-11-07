@@ -12,6 +12,7 @@
 #include "../internal/is_array.hpp"
 #include "FieldErrors.hpp"
 #include "Parser_base.hpp"
+#include "wrap_error.hpp"
 
 namespace rfl::parsing {
 
@@ -86,10 +87,7 @@ class ViewReaderWithStrippedFieldNames {
       std::get<i>(*_found) = true;
       auto res = Parser<R, W, T, ProcessorsType>::read(_r, _var);
       if (!res) {
-        std::stringstream stream;
-        stream << "Failed to parse field '" << std::string(name)
-               << "': " << res.error().what();
-        _errors->emplace_back(stream.str());
+        _errors->emplace_back(wrap_field_error(name, std::move(res).error()));
         return;
       }
       if constexpr (std::is_pointer_v<OriginalType>) {
