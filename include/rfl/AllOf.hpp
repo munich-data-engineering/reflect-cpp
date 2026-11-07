@@ -1,6 +1,7 @@
 #ifndef RFL_ALLOF_HPP_
 #define RFL_ALLOF_HPP_
 
+#include <utility>
 #include <vector>
 
 #include "Result.hpp"
@@ -16,7 +17,7 @@ struct AllOf {
   /// @return The value if all constraints pass, otherwise an error
   template <class T>
   static rfl::Result<T> validate(T _value) noexcept {
-    return validate_impl<T, C, Cs...>(_value);
+    return validate_impl<T, C, Cs...>(std::move(_value));
   }
 
   /// Converts the validator to a JSON schema type.
@@ -33,9 +34,13 @@ struct AllOf {
   template <class T, class Head, class... Tail>
   static rfl::Result<T> validate_impl(T _value) noexcept {
     if constexpr (sizeof...(Tail) == 0) {
-      return Head::validate(_value);
+      return Head::validate(std::move(_value));
     } else {
-      return Head::validate(_value).and_then(validate_impl<T, Tail...>);
+      auto res = Head::validate(std::move(_value));
+      if (!res) {
+        return res;
+      }
+      return validate_impl<T, Tail...>(std::move(*res));
     }
   }
 };

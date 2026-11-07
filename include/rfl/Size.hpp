@@ -2,6 +2,7 @@
 #define RFL_SIZE_HPP_
 
 #include <map>
+#include <utility>
 
 #include "Ref.hpp"
 #include "Result.hpp"
@@ -18,13 +19,12 @@ struct Size {
   /// @param _t The container whose size will be validated
   /// @return The container if validation passes, otherwise an error
   template <class T>
-  static rfl::Result<T> validate(const T& _t) {
-    const auto to_t = [&](const auto&) { return _t; };
-    const auto embellish_error = [](const auto& _err) -> Error {
-      return Error("Size validation failed: " + _err.what());
-    };
-    return V::validate(_t.size()).transform(to_t).transform_error(
-        embellish_error);
+  static rfl::Result<T> validate(T _t) {
+    auto res = V::validate(_t.size());
+    if (!res) {
+      return error("Size validation failed: " + res.error().what());
+    }
+    return std::move(_t);
   }
 
   /// Converts the size validator to a JSON schema type.

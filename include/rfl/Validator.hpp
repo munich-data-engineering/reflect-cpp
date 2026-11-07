@@ -33,7 +33,19 @@ struct Validator {
   /// if it fails
   static Result<Validator> from_value(const T& _value) noexcept {
     try {
-      return Validator(_value);
+      return wrap_validated(ValidationType::validate(_value));
+    } catch (std::exception& e) {
+      return error(e.what());
+    }
+  }
+
+  /// Exception-free validation from a value (move version).
+  /// @param _value The value to validate (will be moved)
+  /// @return Result containing a Validator if validation succeeds, or an error
+  /// if it fails
+  static Result<Validator> from_value(T&& _value) noexcept {
+    try {
+      return wrap_validated(ValidationType::validate(std::move(_value)));
     } catch (std::exception& e) {
       return error(e.what());
     }
@@ -54,7 +66,8 @@ struct Validator {
   /// Constructs from an rvalue of T (validates the value).
   /// @param _value The value to validate and wrap
   /// @throws std::exception if validation fails
-  Validator(T&& _value) : value_(ValidationType::validate(_value).value()) {}
+  Validator(T&& _value)
+      : value_(ValidationType::validate(std::move(_value)).value()) {}
 
   /// Constructs from a const reference to T (validates the value).
   /// @param _value The value to validate and wrap
@@ -176,6 +189,19 @@ struct Validator {
 
   /// Necessary for the serialization to work.
   const T& reflection() const { return value_; }
+
+ private:
+  /// Tag for constructing a Validator from a value that has already been
+  /// validated.
+  struct AlreadyValidated {};
+
+  Validator(AlreadyValidated, T&& _value) : value_(std::move(_value)) {}
+
+  /// Wraps the result of a validation without throwing if it failed.
+  static Result<Validator> wrap_validated(Result<T>&& _res) {
+    return std::move(_res).transform(
+        [](T&& _v) { return Validator(AlreadyValidated{}, std::move(_v)); });
+  }
 
  private:
   /// The underlying value.
