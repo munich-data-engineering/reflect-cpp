@@ -63,7 +63,8 @@ struct DefaultVal {
   /// @param _value The value to convert and store (will be moved)
   template <class U>
     requires(std::is_convertible_v<U, Type>)
-  DefaultVal(U&& _value) noexcept : value_(std::forward<U>(_value)) {}
+  DefaultVal(U&& _value) noexcept(std::is_nothrow_constructible_v<Type, U&&>)
+      : value_(std::forward<U>(_value)) {}
 
   /// Constructs from a DefaultVal with compatible type.
   /// @tparam U Type convertible to T
