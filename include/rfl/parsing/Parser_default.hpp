@@ -663,11 +663,19 @@ struct Parser {
       } else {
         using NamedTupleType = internal::processed_t<U, ProcessorsType>;
         if constexpr (internal::has_default_val_v<U>) {
-          auto t = U{};
-          auto view = ProcessorsType::template process<U>(to_view(t));
-          (*_definitions)[name] =
-              Parser<R, W, NamedTupleType, ProcessorsType>::to_schema(
-                  _definitions, &view);
+          try {
+            auto t = U{};  // This might fail, for instance if the default
+                           // value of another field does not satisfy its
+                           // validator. Then the schema has no defaults.
+            auto view = ProcessorsType::template process<U>(to_view(t));
+            (*_definitions)[name] =
+                Parser<R, W, NamedTupleType, ProcessorsType>::to_schema(
+                    _definitions, &view);
+          } catch (std::exception&) {
+            (*_definitions)[name] =
+                Parser<R, W, NamedTupleType, ProcessorsType>::to_schema(
+                    _definitions);
+          }
         } else {
           (*_definitions)[name] =
               Parser<R, W, NamedTupleType, ProcessorsType>::to_schema(

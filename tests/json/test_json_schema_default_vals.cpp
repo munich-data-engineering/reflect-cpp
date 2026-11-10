@@ -106,4 +106,20 @@ TEST(json, test_with_default_mixed_with_plain_fields) {
   EXPECT_EQ(json_schema, expected) << json_schema;
 }
 
+/// The default-constructed `port` does not satisfy its validator, so the
+/// struct cannot be default-constructed to read the defaults from.
+struct DefaultWithInvalidValidator {
+  rfl::Validator<int, rfl::Minimum<1>> port;
+  rfl::DefaultVal<int> with_default = 10;
+};
+
+TEST(json, test_no_default_when_struct_cannot_be_default_constructed) {
+  const auto json_schema = rfl::json::to_schema<DefaultWithInvalidValidator>();
+
+  EXPECT_EQ(json_schema.find("\"default\""), std::string::npos)
+      << "expected no default: " << json_schema;
+  EXPECT_NE(json_schema.find("\"required\":[\"port\"]"), std::string::npos)
+      << "expected with_default to remain optional: " << json_schema;
+}
+
 }  // namespace test_schema_default
