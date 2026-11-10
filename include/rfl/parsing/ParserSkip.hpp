@@ -1,6 +1,7 @@
 #ifndef RFL_PARSING_PARSER_SKIP_HPP_
 #define RFL_PARSING_PARSER_SKIP_HPP_
 
+#include <exception>
 #include <map>
 #include <type_traits>
 
@@ -39,8 +40,14 @@ struct ParserSkip {
   static Result<internal::Skip<T, _skip_serialization, _skip_deserialization>>
   read(const R& _r, const InputVarType& _var) noexcept {
     if constexpr (_skip_deserialization) {
-      return internal::Skip<T, _skip_serialization, _skip_deserialization>(
-          std::remove_cvref_t<T>());
+      // The default value can throw, for instance a Validator whose default
+      // value is invalid.
+      try {
+        return internal::Skip<T, _skip_serialization, _skip_deserialization>(
+            std::remove_cvref_t<T>());
+      } catch (std::exception& e) {
+        return error(e.what());
+      }
     } else {
       const auto to_skip = [&](auto&& _t) {
         return internal::Skip<T, _skip_serialization, _skip_deserialization>(
