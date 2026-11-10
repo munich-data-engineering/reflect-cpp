@@ -6,6 +6,7 @@
 #include "../internal/strings/utf8_conversions.hpp"
 #include "Parser.hpp"
 #include "Reader.hpp"
+#include "long_options.hpp"
 #include "parse_argv.hpp"
 #include "resolve_args.hpp"
 
@@ -24,7 +25,7 @@ namespace rfl::cli {
 template <class T, class... Ps>
 rfl::Result<T> read(int argc, char* argv[]) {
   using ProcessorsType = Processors<SnakeCaseToKebabCase, Ps...>;
-  return parse_argv(argc, argv)
+  return parse_argv(argc, argv, make_long_options<T, ProcessorsType>())
       .and_then(resolve_args<T, ProcessorsType>)
       .and_then([](auto _args) -> rfl::Result<T> {
         const auto r = Reader();

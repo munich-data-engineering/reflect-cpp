@@ -10,6 +10,7 @@
 
 #include "../Result.hpp"
 #include "../internal/strings/utf8_conversions.hpp"
+#include "long_options.hpp"
 #include "resolve_args.hpp"
 
 namespace rfl::cli {
@@ -26,20 +27,36 @@ inline bool looks_like_option(std::string_view _token) noexcept {
          && _token[1] != '.';
 }
 
+/// Returns true if the token is one of the values that a bool flag given
+/// without '=' takes from the next token: "true", "false", "1" or "0".
+/// @param _token The command-line token to check
+/// @return true if it is a boolean literal, false otherwise
+inline bool is_bool_literal(std::string_view _token) noexcept {
+  return _token == "true" || _token == "false" || _token == "1"
+         || _token == "0";
+}
+
 /// Parses command-line arguments into categorized buckets.
 /// Handles three types of arguments:
-/// - Long options: --key=value or --flag (stored in `named`)
+/// - Long options: --key=value, --key value or --flag (stored in `named`)
 /// - Short options: -x value, -x=value, or -x (stored in `short_args`)  
 /// - Positional arguments: bare arguments not prefixed with dashes (stored in `positional`)
 /// The special argument "--" forces all subsequent arguments to be treated as positional.
+/// `_long_options` says which long options take a value. A long option that
+/// takes a value consumes the next token when it is given without '='. A
+/// boolean one consumes it only if it is "true", "false", "1" or "0". Others
+/// never consume it.
 /// @param argc Number of command-line arguments
 /// @param argv Array of command-line argument strings
+/// @param _long_options The long options of the target struct
 /// @return A Result containing ParsedArgs with categorized arguments or an error
-/// --key=value / --flag → named
+/// --key=value / --key value / --flag → named
 /// -x value / -x=value / -x → short_args
 /// bare arguments → positional
 /// -- → everything after goes to positional
-inline rfl::Result<ParsedArgs> parse_argv(int argc, char* argv[]) {
+inline rfl::Result<ParsedArgs> parse_argv(
+    int argc, char* argv[], const LongOptions& _long_options
+) {
   if (argc < 0 || (argc > 0 && !argv)) {
     return error("Invalid argc/argv.");
   }
@@ -73,16 +90,37 @@ inline rfl::Result<ParsedArgs> parse_argv(int argc, char* argv[]) {
       continue;
     }
 
-    // Long argument: --key=value or --flag.
+    // Long argument: --key=value, --key value or --flag.
     if (arg_raw.starts_with("--")) {
       const auto arg = arg_raw.substr(2);
       const auto eq = arg.find('=');
       auto key = std::string(
           eq == std::string_view::npos ? arg : arg.substr(0, eq));
-      auto val = std::string(
-          eq == std::string_view::npos ? "" : arg.substr(eq + 1));
       if (key.empty()) {
         return error("Empty key in argument: " + std::string(arg_raw));
+      }
+      const auto kind = _long_options.kind_of(key);
+      if (kind == LongOptionKind::unknown && _long_options.reject_unknown) {
+        return error("Unknown option '--" + key + "'.");
+      }
+      auto val = std::string();
+      if (eq != std::string_view::npos) {
+        val = std::string(arg.substr(eq + 1));
+      }
+      else if (kind == LongOptionKind::value) {
+        // --key value
+        if (i + 1 >= args.size() || looks_like_option(args[i + 1])) {
+          return error("Missing value for option '--" + key + "'.");
+        }
+        val = std::string(args[++i]);
+      }
+      else if (kind == LongOptionKind::flag) {
+        // --flag true / --flag false, like -v true / -v false. Any other
+        // token stays where it is, so `--verbose input.txt` leaves
+        // "input.txt" positional.
+        if (i + 1 < args.size() && is_bool_literal(args[i + 1])) {
+          val = std::string(args[++i]);
+        }
       }
       if (!result.named.emplace(std::move(key), std::move(val)).second) {
         return error("Duplicate argument: " + std::string(arg_raw));
@@ -121,12 +159,25 @@ inline rfl::Result<ParsedArgs> parse_argv(int argc, char* argv[]) {
   return result;
 }
 
+/// Parses command-line arguments without knowing the target struct.
+/// Long options never consume the next token, so values must be passed as
+/// --key=value.
+/// @param argc Number of command-line arguments
+/// @param argv Array of command-line argument strings
+/// @return A Result containing ParsedArgs with categorized arguments or an error
+inline rfl::Result<ParsedArgs> parse_argv(int argc, char* argv[]) {
+  return parse_argv(argc, argv, LongOptions{});
+}
+
 /// Parses wide-character command-line arguments into categorized buckets.
 /// Converts each wide string to UTF-8 and delegates to the narrow parse_argv.
 /// @param argc Number of wide-character command-line arguments
 /// @param argv Array of wide-character command-line argument strings
+/// @param _long_options The long options of the target struct
 /// @return A Result containing ParsedArgs with UTF-8 encoded arguments
-inline rfl::Result<ParsedArgs> parse_argv(int argc, wchar_t* argv[]) {
+inline rfl::Result<ParsedArgs> parse_argv(
+    int argc, wchar_t* argv[], const LongOptions& _long_options
+) {
   if (argc < 0 || (argc > 0 && !argv)) {
     return error("Invalid argc/argv.");
   }
@@ -150,7 +201,16 @@ inline rfl::Result<ParsedArgs> parse_argv(int argc, wchar_t* argv[]) {
     narrow_argv_ptrs.push_back(narrow_argv.back().data());
   }
 
-  return parse_argv(argc, narrow_argv_ptrs.data());
+  return parse_argv(argc, narrow_argv_ptrs.data(), _long_options);
+}
+
+/// Parses wide-character command-line arguments without knowing the target
+/// struct. See the narrow overload.
+/// @param argc Number of wide-character command-line arguments
+/// @param argv Array of wide-character command-line argument strings
+/// @return A Result containing ParsedArgs with UTF-8 encoded arguments
+inline rfl::Result<ParsedArgs> parse_argv(int argc, wchar_t* argv[]) {
+  return parse_argv(argc, argv, LongOptions{});
 }
 
 }  // namespace rfl::cli

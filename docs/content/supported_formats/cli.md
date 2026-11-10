@@ -28,6 +28,45 @@ int main(int argc, char* argv[]) {
 Field names undergo automatic `snake_case` -> `kebab-case` conversion:
 `host_name` matches `--host-name`.
 
+## Long options
+
+A long option takes its value either after `=` or as the next token:
+
+```
+./app --host-name=localhost --port=8080
+./app --host-name localhost --port 8080 --tags a,b,c --rate -0.5
+```
+
+This works for every field that takes a value: nested fields
+(`--database.host db.local`), vectors, enums, numbers, optionals, map
+entries (`--labels.env prod`), fields inlined by `rfl::Flatten`, and fields
+wrapped in `rfl::Short`, `rfl::Positional`, `rfl::Rename`,
+`rfl::Description`, `rfl::Validator` or `rfl::DefaultVal`.
+
+The next token is the value unless it looks like an option (`-` followed by
+a letter), so negative numbers such as `--offset -5` work. If the value is
+missing, parsing fails with `Missing value for option '--sql'.` Use `=` to
+pass an empty value or one that starts with `-`: `--sql=`, `--pattern=-x`.
+
+Boolean fields (`bool`, `std::optional<bool>` and wrapped bools) are flags
+and do not consume the next token: `--verbose input.txt` sets `verbose` and
+passes `input.txt` as a positional argument. Like short bool flags, a long
+flag takes the next token only if it is `true`, `false`, `1` or `0`, so
+`--verbose false` sets `verbose` to `false`. To pass such a token as a
+positional argument, write `--verbose -- 1` or `--verbose=true 1`.
+
+## Unknown options
+
+By default, long options that match no field are ignored, and they do not
+consume the next token. Pass `rfl::NoExtraFields` to reject them:
+
+```cpp
+const auto result = rfl::cli::read<Config, rfl::NoExtraFields>(argc, argv);
+// ./app --nope 1   ->  error: Unknown option '--nope'.
+```
+
+Unknown short options are always an error.
+
 ## Positional arguments
 
 Wrap a field with `rfl::Positional<T>` to accept it as a bare (non-flag) argument:
@@ -109,7 +148,10 @@ struct Config {
 Parsing proceeds in three stages:
 
 1. **`parse_argv`** — categorizes raw tokens into `named`, `short_args`,
-   and `positional` buckets (`ParsedArgs` struct). No type information needed.
+   and `positional` buckets (`ParsedArgs` struct). It is given a
+   `LongOptions` table derived from the target struct
+   (`make_long_options<T, ProcessorsType>()`), which says which long options
+   are flags and which take a value, so that `--key value` works.
 2. **`resolve_args`** — uses compile-time metadata from the target struct to
    map short aliases to long names, reclaim values from bool short flags,
    and merge positional arguments. Produces a flat `map<string, string>`.
@@ -123,6 +165,7 @@ Parsing proceeds in three stages:
 - `include/rfl/cli/Reader.hpp` — Reader + `parse_value` overloads
 - `include/rfl/cli/Parser.hpp` — Parser type alias
 - `include/rfl/cli/parse_argv.hpp` — `argv` -> `ParsedArgs`
+- `include/rfl/cli/long_options.hpp` — `LongOptions`: which long options take a value
 - `include/rfl/cli/resolve_args.hpp` — `ParsedArgs` -> `map<string, string>`
 - `include/rfl/cli.hpp` — aggregator header
 - `include/rfl/SnakeCaseToKebabCase.hpp` — processor
