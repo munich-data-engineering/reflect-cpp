@@ -87,6 +87,108 @@ struct Config {
 // ./app data.csv -o /tmp/out -v --count=10
 ```
 
+## Usage / help
+
+`rfl::cli::usage<T, Ps...>(program_name, detailed = false)` generates the
+help text from the same struct, and with the same processors, as
+`rfl::cli::read<T, Ps...>()`. So the names always match what the parser
+accepts, including kebab-case, `rfl::Rename`, `rfl::Flatten` and nested paths.
+
+```cpp
+enum class LogLevel { debug, info, warn };
+
+struct Database {
+  std::string host;
+  int port;
+};
+
+struct Config {
+  rfl::Positional<rfl::Description<"Path to the input file", std::string>>
+      input_file;
+  rfl::Short<"p", rfl::Description<"Port to listen on",
+                                   rfl::Validator<int, rfl::Minimum<1>,
+                                                  rfl::Maximum<65535>>>>
+      port;
+  rfl::Description<"Minimum level to log", std::optional<LogLevel>> log_level;
+  rfl::Description<"Tags to attach",
+                   rfl::Validator<std::vector<std::string>,
+                                  rfl::Size<rfl::Minimum<1>>>>
+      tags;
+  Database database;
+};
+```
+
+`rfl::cli::usage<Config>("app")` returns the usage line, where optional
+arguments are in brackets:
+
+```
+Usage: app <input-file> -p|--port=<value> [--log-level=<debug|info|warn>] --tags=<v1,v2,...> --database.host=<value> --database.port=<value>
+```
+
+`rfl::cli::usage<Config>("app", true)` adds one line per argument, with its
+description, the constraints of its validators, its default and whether it is
+required:
+
+```
+Usage: app <input-file> -p|--port=<value> [--log-level=<debug|info|warn>] --tags=<v1,v2,...> --database.host=<value> --database.port=<value>
+
+Arguments:
+  <input-file>                   Path to the input file. Required.
+  -p, --port=<value>             Port to listen on. Range: 1..65535. Required.
+  --log-level=<debug|info|warn>  Minimum level to log
+  --tags=<v1,v2,...>             Tags to attach. Size: >= 1. Required.
+  --database.host=<value>        Required.
+  --database.port=<value>        Required.
+```
+
+Defaults are shown for fields wrapped in `rfl::DefaultVal`, and for all fields
+if you pass `rfl::DefaultIfMissing` (to both `read` and `usage`), as long as
+the struct can be default-constructed:
+
+```cpp
+struct Server {
+  rfl::DefaultVal<std::string> host = "localhost";
+  rfl::DefaultVal<int> threads = 4;
+  rfl::DefaultVal<bool> dry_run = false;
+};
+```
+
+```
+Arguments:
+  --host=<value>      Default: localhost.
+  --threads=<value>   Default: 4.
+  --dry-run[=<bool>]  Default: false.
+```
+
+`rfl::Positional`, `rfl::Short` and `rfl::DefaultVal` only take effect as the
+outermost wrapper of a field, so put `rfl::Description` and validators inside
+them. The help shows what the parser does: a field declared as
+`rfl::Description<"...", rfl::Positional<std::string>>` is listed as a named
+argument, because that is how it is parsed.
+
+`read` does not handle `--help`. Check for it before calling `read`, and
+print the usage line when parsing fails:
+
+```cpp
+int main(int argc, char* argv[]) {
+  if (std::any_of(argv + 1, argv + argc, [](std::string_view _arg) {
+        return _arg == "--help" || _arg == "-h";
+      })) {
+    std::cout << rfl::cli::usage<Config>(argv[0], true);
+    return 0;
+  }
+  const auto config = rfl::cli::read<Config>(argc, argv);
+  if (!config) {
+    std::cerr << config.error().what() << "\n\n"
+              << rfl::cli::usage<Config>(argv[0]);
+    return 1;
+  }
+  // ...
+}
+```
+
+(Leave out `-h` if one of your fields uses `rfl::Short<"h", ...>`.)
+
 ## Supported types
 
 | Type | CLI format | Notes |
@@ -124,6 +226,7 @@ Parsing proceeds in three stages:
 - `include/rfl/cli/Parser.hpp` — Parser type alias
 - `include/rfl/cli/parse_argv.hpp` — `argv` -> `ParsedArgs`
 - `include/rfl/cli/resolve_args.hpp` — `ParsedArgs` -> `map<string, string>`
+- `include/rfl/cli/usage.hpp` — `usage()` help text, built on `rfl::parsing::schema`
 - `include/rfl/cli.hpp` — aggregator header
 - `include/rfl/SnakeCaseToKebabCase.hpp` — processor
 - `include/rfl/Positional.hpp` — `Positional<T>` wrapper
