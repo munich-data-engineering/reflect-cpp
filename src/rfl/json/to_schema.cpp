@@ -104,6 +104,11 @@ schema::Type handle_validation_type(
 
     } else if constexpr (std::is_same<T, ValidationType::Size>()) {
       auto t = type_to_json_schema_type(_type, _no_required);
+      // Size validates decoded bytes, not the length of the Base64 text.
+      if (const auto* str = rfl::get_if<schema::Type::String>(&t.value);
+          str && str->contentEncoding) {
+        return t;
+      }
       const auto to_size = [](const auto _val) {
         return static_cast<size_t>(_val);
       };
@@ -211,9 +216,12 @@ schema::Type type_to_json_schema_type(const parsing::schema::Type& _type,
       return schema::Type{.value = schema::Type::Number{}};
 
     } else if constexpr (std::is_same<T, Type::String>() ||
-                         std::is_same<T, Type::Bytestring>() ||
                          std::is_same<T, Type::Vectorstring>()) {
       return schema::Type{.value = schema::Type::String{}};
+
+    } else if constexpr (std::is_same<T, Type::Bytestring>()) {
+      return schema::Type{
+          .value = schema::Type::String{.contentEncoding = "base64"}};
 
     } else if constexpr (std::is_same<T, Type::AnyOf>()) {
       auto any_of = std::vector<schema::Type>();
