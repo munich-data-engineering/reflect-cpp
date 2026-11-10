@@ -5,7 +5,9 @@
 
 #include "../internal/has_reflection_method_v.hpp"
 #include "../internal/has_reflection_type_v.hpp"
+#include "../internal/is_positional.hpp"
 #include "../internal/is_rename.hpp"
+#include "../internal/is_short.hpp"
 #include "../internal/is_skip.hpp"
 #include "is_map_like.hpp"
 #include "is_vector_like.hpp"
@@ -34,7 +36,9 @@ static bool is_empty(const T& _var) {
       const auto& [r] = _var;
       return is_empty(r);
     }
-  } else if constexpr (internal::is_rename_v<Type>) {
+  } else if constexpr (internal::is_rename_v<Type> ||
+                       internal::is_short_v<Type> ||
+                       internal::is_positional_v<Type>) {
     return is_empty(_var.value());
   } else if constexpr (is_map_like_v<Type> || is_vector_like_v<Type>) {
     return _var.begin() == _var.end();
