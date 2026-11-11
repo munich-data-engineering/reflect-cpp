@@ -197,6 +197,24 @@ TEST(json, test_default_val_with_validator_limits_other_types) {
   EXPECT_FALSE(schema->items->nullable.value());
 }
 
+// The JSON schema leaves out the default values of a struct that cannot be
+// default-constructed.
+struct WithPerson {
+  int id;
+  Person person;
+};
+
+TEST(json, test_default_val_with_validator_limits_to_schema) {
+  const auto schema = rfl::json::to_schema<Person>();
+  EXPECT_NE(schema.find(R"("favorite_foods":{"type":"array")"),
+            std::string::npos)
+      << schema;
+  EXPECT_EQ(schema.find("Homer Simpson"), std::string::npos) << schema;
+
+  const auto nested = rfl::json::to_schema<WithPerson>();
+  EXPECT_NE(nested.find(R"("person":{"$ref":)"), std::string::npos) << nested;
+}
+
 // [[no_unique_address]] can place a field in the tail padding of another.
 struct InTailPadding {
   rfl::Validator<int64_t, rfl::Minimum<0>> a;
