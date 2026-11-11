@@ -9,7 +9,9 @@
 
 #include "AllOf.hpp"
 #include "Result.hpp"
+#include "internal/DeferredDefaults.hpp"
 #include "internal/HasValidation.hpp"
+#include "internal/cold.hpp"
 
 namespace rfl {
 
@@ -52,8 +54,10 @@ struct Validator {
   }
 
   /// Default constructor - validates a default-constructed T.
-  /// @throws std::exception if validation of the default value fails
-  Validator() : value_(ValidationType::validate(T()).value()) {}
+  /// @throws std::exception if validation of the default value fails, unless
+  /// the parser is default-constructing a struct to read into, see
+  /// internal::DeferredDefaults.
+  Validator() : value_(valid_or_deferred(this)) {}
 
   /// Move constructor.
   /// @param _other The validator to move from
@@ -196,6 +200,25 @@ struct Validator {
   struct AlreadyValidated {};
 
   Validator(AlreadyValidated, T&& _value) : value_(std::move(_value)) {}
+
+  /// Returns the validated default value. If it is invalid, this throws,
+  /// unless the parser defers its validation, see internal::DeferredDefaults.
+  /// _self is the Validator under construction. It is not a pointer to const,
+  /// because GCC would then warn that it is used uninitialized.
+  static T valid_or_deferred(void* _self) {
+    auto res = ValidationType::validate(T());
+    if (!res) [[unlikely]] {
+      return deferred_or_throw(_self, res.error());
+    }
+    return *std::move(res);
+  }
+
+  RFL_COLD static T deferred_or_throw(void* _self, const Error& _err) {
+    if (!internal::DeferredDefaults::defer(_self, _err)) {
+      Result<T>(error(_err)).value();
+    }
+    return T();
+  }
 
   /// Wraps the result of a validation without throwing if it failed.
   static Result<Validator> wrap_validated(Result<T>&& _res) {

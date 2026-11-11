@@ -1,12 +1,20 @@
 #ifndef RFL_PARSING_PARSER_DEFAULT_HPP_
 #define RFL_PARSING_PARSER_DEFAULT_HPP_
 
+#include <array>
+#include <atomic>
+#include <functional>
 #include <map>
+#include <memory>
+#include <new>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <type_traits>
 
 #include "../Result.hpp"
 #include "../always_false.hpp"
+#include "../internal/DeferredDefaults.hpp"
 #include "../internal/HasFromReflectionMethod.hpp"
 #include "../internal/always_inline.hpp"
 #include "../internal/cold.hpp"
@@ -25,6 +33,7 @@
 #include "../internal/to_ptr_named_tuple.hpp"
 #include "../to_view.hpp"
 #include "AreReaderAndWriter.hpp"
+#include "FieldErrors.hpp"
 #include "MapParser.hpp"
 #include "Parent.hpp"
 #include "ParserArray.hpp"
@@ -71,6 +80,8 @@
 #include "schema/Type.hpp"
 #include "schemaful/IsSchemafulReader.hpp"
 #include "schemaful/IsSchemafulWriter.hpp"
+#include "to_single_error_message.hpp"
+#include "wrap_error.hpp"
 
 namespace rfl::parsing {
 
@@ -721,25 +732,129 @@ struct Parser {
   /// so we only use it when the DefaultIfMissing preprocessor is added.
   static Result<T> read_struct_with_default(const R& _r,
                                             const InputVarType& _var) {
+    // T is constructed in place, so that the Validators that deferred records
+    // stay where they are: a trivially copyable T returned from a function
+    // may be copied.
+    alignas(T) unsigned char buf[sizeof(T)];
+    internal::DeferredDefaults deferred(&buf, sizeof(T));
+    std::unique_ptr<T, Destroy> t;
     try {
-      // This might fail, for instance if the default value of a field does not
-      // satisfy its validator. The outer handler is for this line only.
-      auto t = T{};
-      try {
-        auto view = ProcessorsType::template process<T>(to_view(t));
-        using ViewType = decltype(view);
-        auto err =
-            Parser<R, W, ViewType, ProcessorsType>::read_view_with_default(
-                _r, _var, &view);
-        if (err) [[unlikely]] {
-          return error(std::move(*err));
-        }
-        return t;
-      } catch (std::exception& e) {
-        return error(e.what());
-      }
+      t.reset(default_construct(&buf, &deferred));
     } catch (std::exception& e) {
       return error(default_construction_error(e.what()));
+    }
+    try {
+      auto view = ProcessorsType::template process<T>(to_view(*t));
+      using ViewType = decltype(view);
+      auto found = std::array<bool, ViewType::size()>{};
+      const bool any_deferred = !deferred.records().empty();
+      auto err =
+          Parser<R, W, ViewType, ProcessorsType>::read_view_with_default(
+              _r, _var, &view, any_deferred ? &found : nullptr);
+      if (!err && any_deferred) [[unlikely]] {
+        err = check_deferred_defaults(
+            deferred, view, found,
+            std::make_index_sequence<ViewType::size()>());
+      }
+      if (err) [[unlikely]] {
+        return error(std::move(*err));
+      }
+      return std::move(*t);
+    } catch (std::exception& e) {
+      return error(e.what());
+    }
+  }
+
+  struct Destroy {
+    void operator()(T* _ptr) const { _ptr->~T(); }
+  };
+
+  /// Constructs T{} in _buf. If that throws, for instance because the default
+  /// value of a Validator is invalid, we try again with such Validators
+  /// deferred to _deferred (see internal::DeferredDefaults).
+  static T* default_construct(void* _buf,
+                              internal::DeferredDefaults* _deferred) {
+    // Whether that has been necessary before, so that the first try would
+    // throw again. This is only a shortcut, so relaxed is enough.
+    static std::atomic<bool> defer_right_away = false;
+    if (!defer_right_away.load(std::memory_order_relaxed)) {
+      try {
+        return ::new (_buf) T{};
+      } catch (std::exception&) {
+      }
+    }
+    const auto scope = internal::DeferredDefaults::Scope(_deferred);
+    auto* ptr = ::new (_buf) T{};
+    if (!_deferred->records().empty()) {
+      defer_right_away.store(true, std::memory_order_relaxed);
+    }
+    return ptr;
+  }
+
+  /// Returns an error if an invalid default value that has been deferred is
+  /// still part of the result. This relies on every field that the input
+  /// contains having been assigned a value that was read as a whole (see
+  /// ViewReaderWithDefault and ViewReaderWithDefaultAndStrippedFieldNames),
+  /// which replaces any invalid default value inside it. A field that is
+  /// missing from the input keeps its default value.
+  template <class ViewType, size_t... _is>
+  static std::optional<Error> check_deferred_defaults(
+      const internal::DeferredDefaults& _deferred, const ViewType& _view,
+      const std::array<bool, sizeof...(_is)>& _found,
+      std::index_sequence<_is...>) {
+    constexpr size_t none = sizeof...(_is);
+    constexpr auto names = std::array<std::string_view, sizeof...(_is)>{
+        tuple_element_t<_is, typename ViewType::Fields>::name()...};
+    FieldErrors<ProcessorsType> errors;
+    auto reported = std::array<bool, sizeof...(_is)>{};
+    for (const auto& record : _deferred.records()) {
+      const auto* address = static_cast<const unsigned char*>(record.address);
+      // [[no_unique_address]] lets a field be placed in the tail padding of
+      // another one, so the address can be inside both. It then belongs to
+      // the one that starts later.
+      size_t field = none;
+      const unsigned char* field_begin = nullptr;
+      const auto find_field = [&]<size_t _i>(
+                                  std::integral_constant<size_t, _i>) {
+        using Type =
+            typename tuple_element_t<_i, typename ViewType::Fields>::Type;
+        if constexpr (std::is_pointer_v<Type> &&
+                      !std::is_empty_v<std::remove_pointer_t<Type>>) {
+          const auto* begin =
+              internal::ptr_cast<const unsigned char*>(rfl::get<_i>(_view));
+          const auto* end = begin + sizeof(std::remove_pointer_t<Type>);
+          const auto less = std::less<const unsigned char*>();
+          if (!less(address, begin) && less(address, end) &&
+              (field == none || less(field_begin, begin))) {
+            field = _i;
+            field_begin = begin;
+          }
+        }
+      };
+      (find_field(std::integral_constant<size_t, _is>{}), ...);
+      if (field == none) [[unlikely]] {
+        // Not inside any field, so we cannot tell what happened to it.
+        return default_construction_error(record.error.what().c_str());
+      }
+      if (!_found[field] && !reported[field]) {
+        reported[field] = true;
+        const auto name = std::string(names[field]);
+        errors.emplace_back(make_nested_error(
+            name, "Field named '" + name +
+                      "' not found, and its default value is invalid: " +
+                      record.error.what()));
+        if (should_stop_on_field_error<ProcessorsType>(errors)) {
+          break;
+        }
+      }
+    }
+    if constexpr (internal::fail_fast_v<ProcessorsType>) {
+      return std::move(errors).error();
+    } else {
+      if (errors.empty()) {
+        return std::nullopt;
+      }
+      return to_single_error(std::move(errors));
     }
   }
 

@@ -87,6 +87,8 @@ class ViewReaderWithDefault {
         _errors->emplace_back(wrap_field_error(name, std::move(res).error()));
         return;
       }
+      // Parser::check_deferred_defaults relies on the field being replaced as
+      // a whole.
       if constexpr (std::is_pointer_v<OriginalType>) {
         move_to(rfl::get<i>(*_view), &(*res));
       } else {

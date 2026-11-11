@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <optional>
 #include <rfl.hpp>
 #include <rfl/json.hpp>
 #include <stdexcept>
@@ -11,9 +12,12 @@ namespace test_default_construct_error {
 using Foods =
     rfl::Validator<std::vector<std::string>, rfl::Size<rfl::Minimum<1>>>;
 
+// The invalid default values are constructed outside of the struct and then
+// moved into it, so reading cannot defer them (see
+// test_default_val_with_validator_limits.cpp).
 struct Person {
   rfl::DefaultVal<std::string> name = "Homer Simpson";
-  Foods favorite_foods;
+  rfl::DefaultVal<Foods> favorite_foods = Foods();
 };
 
 struct PersonWithValidDefault {
@@ -23,7 +27,7 @@ struct PersonWithValidDefault {
 
 struct Pet {
   std::string name;
-  Foods favorite_foods;
+  std::optional<Foods> favorite_foods = Foods();
 };
 
 struct Family {
