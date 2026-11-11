@@ -1,6 +1,7 @@
 #ifndef RFL_PARSING_TUPLEREADER_HPP_
 #define RFL_PARSING_TUPLEREADER_HPP_
 
+#include <exception>
 #include <sstream>
 #include <string>
 #include <type_traits>
@@ -80,9 +81,25 @@ class TupleReader {
               static_cast<size_t>(_i),
               "Field " + std::to_string(_i) + " was required, but missing.");
           return;
-        } else {
+        } else if constexpr (std::is_nothrow_default_constructible_v<
+                                 CurrentType>) {
           ::new (&(rfl::get<_i>(*tuple_))) CurrentType();
           ++num_set_;
+        } else {
+          // The default value can throw, for instance a Validator whose
+          // default value is invalid.
+          try {
+            ::new (&(rfl::get<_i>(*tuple_))) CurrentType();
+            ++num_set_;
+          } catch (std::exception& e) {
+            *_err = make_nested_error(
+                static_cast<size_t>(_i),
+                "Field " + std::to_string(_i) +
+                    " was missing, and its default value could not be "
+                    "constructed: " +
+                    e.what());
+            return;
+          }
         }
       }
       handle_missing_fields_impl<_i + 1>(_err);
