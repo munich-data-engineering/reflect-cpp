@@ -44,6 +44,7 @@ reflect-cpp currently supports the following processors:
 - `rfl::NoExtraFields`
 - `rfl::NoFieldNames`
 - `rfl::NoOptionals`
+- `rfl::StringifyMapKeys`
 - `rfl::UnderlyingEnums`
 - `rfl::SnakeCaseToCamelCase`
 - `rfl::SnakeCaseToPascalCase`
@@ -555,3 +556,43 @@ struct MyOwnProcessor {
   static auto process(auto&& _named_tuple) {...}
 };
 ```
+
+### `rfl::StringifyMapKeys`
+
+Use `rfl::StringifyMapKeys` to represent `std::map` and `std::unordered_map`
+with enum keys or string-reflected keys as maps (JSON objects, YAML mappings),
+instead of arrays of key/value pairs. This is opt-in and applies to nested maps
+as well. Pass the processor to both `read` and `write`.
+
+```cpp
+enum class Colour { Red, Green, Blue };
+using Dictionary = std::map<Colour, std::string>;
+
+const Dictionary dictionary{{Colour::Red, "Rojo"}, {Colour::Blue, "Azul"}};
+const auto json = rfl::json::write<rfl::StringifyMapKeys>(dictionary);
+// {"Red":"Rojo","Blue":"Azul"}
+const auto decoded =
+    rfl::json::read<Dictionary, rfl::StringifyMapKeys>(json);
+```
+
+For any key type `T` with a custom `rfl::Reflector<T>` whose `ReflType` is
+`std::string`, writing uses `Reflector<T>::from` and reading uses
+`Reflector<T>::to`. This includes both enums and user-defined classes. A
+reflector takes precedence over the built-in enum name conversion.
+`Reflector::to` may return `rfl::Result<T>` or throw a `std::exception` to report
+an invalid key. Writing requires `from`; reading requires `to` for non-enum
+string-reflected keys. As with other string-keyed maps, distinct keys should
+have distinct string representations to preserve round trips.
+
+Without a custom reflector, enum keys use the ordinary enum name conversion.
+`rfl::EnumNamesOnly` also applies to keys: it rejects numeric strings as enum
+names. `rfl::UnderlyingEnums` retains the array representation for enums without
+a reflector, since those keys serialize as integers. String reflectors still
+take precedence when both processors are present. Reflectors with a non-string
+`ReflType` retain their existing representation.
+
+Existing string, numeric and `ReflectionType`-based map keys keep their behavior.
+Multimaps remain arrays of pairs, preserving duplicate keys. JSON Schema generated
+with the processor describes these additional maps as objects, just like
+`std::map<std::string, T>`. The processor changes map keys only; enum values
+elsewhere keep their ordinary representation.
