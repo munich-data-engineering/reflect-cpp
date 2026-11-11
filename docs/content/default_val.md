@@ -52,6 +52,42 @@ const auto homer = rfl::json::read<Person, rfl::NoFieldNames>(R"(["Homer"])").va
 // homer.town == ""
 ```
 
+## All fields need a valid default value
+
+A struct that contains an `rfl::DefaultVal` is default-constructed before it is read. The fields found in the input are then written into it. This means that every field of the struct needs a valid default value, even a required field that is in the input.
+
+This matters when the default value of a field's type is not valid, for instance when the field has a validator:
+
+```cpp
+struct Person {
+  rfl::DefaultVal<std::string> name = "Homer Simpson";
+  rfl::Validator<std::vector<std::string>, rfl::Size<rfl::Minimum<1>>> favorite_foods;
+};
+
+// Fails, even though favorite_foods is in the input.
+rfl::json::read<Person>(R"({"favorite_foods":["donuts","pizza"]})");
+```
+
+An empty vector does not satisfy `rfl::Size<rfl::Minimum<1>>`, so `Person{}` throws an exception and you get the following error:
+
+```
+Could not default-construct Person, which is required because it contains rfl::DefaultVal. Give every field a valid default value. Original error: Size validation failed: Value expected to be greater than or equal to 1, but got 0.
+```
+
+To avoid this, give the field a valid default value:
+
+```cpp
+struct Person {
+  rfl::DefaultVal<std::string> name = "Homer Simpson";
+  rfl::Validator<std::vector<std::string>, rfl::Size<rfl::Minimum<1>>> favorite_foods =
+      std::vector<std::string>({"none"});
+};
+```
+
+The field is still required. If `favorite_foods` is missing in the input, you get the error `Field named 'favorite_foods' not found.` The default value is only used for a missing field if you pass the `rfl::DefaultIfMissing` processor.
+
+The same restriction applies to every struct that is read with the `rfl::DefaultIfMissing` processor, whether it contains an `rfl::DefaultVal` or not.
+
 ## When to use
 
 Use `rfl::DefaultVal` when you want a field to be optional at the input side but still available as a value on the resulting object (no std::optional or pointer indirection). It is particularly useful for fields with sensible defaults (for example, a common last name, a default configuration value, or empty containers/strings).
