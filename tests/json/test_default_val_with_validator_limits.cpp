@@ -41,7 +41,12 @@ struct Person {
 };
 
 // A default member initializer that catches the exception of a Validator
-// still sees it, whether the struct can be constructed or not.
+// still sees it, as long as the struct can be default-constructed. If it
+// cannot and its validation is deferred, that depends on where the compiler
+// constructs the Validator that port_or_fallback() returns: outside of the
+// struct, where it throws as usual (Positive is returned in registers under
+// the Itanium ABI), or directly inside the struct, where its validation is
+// deferred like that of any other field (MSVC).
 inline Positive port_or_fallback() {
   try {
     return Positive();
@@ -67,8 +72,20 @@ TEST(json, test_default_val_with_validator_limits_fallback) {
 
   const auto res2 = rfl::json::read<FallbackAndInvalid, rfl::DefaultIfMissing>(
       R"({"retries": 2})");
-  ASSERT_TRUE(res2) << res2.error().what();
-  EXPECT_EQ(rfl::json::write(*res2), R"({"port":8080,"retries":2})");
+  if (res2) {
+    EXPECT_EQ(rfl::json::write(*res2), R"({"port":8080,"retries":2})");
+  } else {
+    EXPECT_EQ(std::string(res2.error().what()),
+              "Field named 'port' not found, and its default value is "
+              "invalid: " +
+                  positive_error);
+  }
+
+  // If the input contains the field, it does not matter.
+  const auto res3 = rfl::json::read<FallbackAndInvalid, rfl::DefaultIfMissing>(
+      R"({"port": 443, "retries": 2})");
+  ASSERT_TRUE(res3) << res3.error().what();
+  EXPECT_EQ(rfl::json::write(*res3), R"({"port":443,"retries":2})");
 }
 
 // A read inside a default member initializer has its own invalid default
