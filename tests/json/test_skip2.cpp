@@ -11,7 +11,7 @@ using Age = rfl::Validator<unsigned int, rfl::Minimum<0>, rfl::Maximum<130>>;
 struct Person {
   rfl::Rename<"firstName", std::string> first_name;
   rfl::Rename<"lastName", std::string> last_name;
-  rfl::Skip<rfl::Bytestring> town;  // Is unsupported by the JSON format
+  rfl::Skip<rfl::Bytestring> town;
   Age age;
 };
 

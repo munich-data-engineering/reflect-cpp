@@ -45,6 +45,7 @@ struct Type {
     rfl::Flatten<Annotations> annotations{};
     rfl::Rename<"minLength", std::optional<size_t>> minSize{};
     rfl::Rename<"maxLength", std::optional<size_t>> maxSize{};
+    std::optional<std::string> contentEncoding{};
   };
 
   using NumericType = rfl::Variant<Integer, Number>;

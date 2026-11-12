@@ -15,8 +15,10 @@
 #include <string_view>
 #include <type_traits>
 
+#include "../Bytestring.hpp"
 #include "../Result.hpp"
 #include "../always_false.hpp"
+#include "../internal/base64.hpp"
 
 namespace rfl {
 namespace json {
@@ -151,6 +153,14 @@ struct Reader {
         return error("Could not cast to string.");
       }
       return std::string(r, yyjson_get_len(_var.val_));
+
+    } else if constexpr (std::is_same<std::remove_cvref_t<T>, Bytestring>()) {
+      const auto str = yyjson_get_str(_var.val_);
+      if (str == nullptr) {
+        return error("Could not cast to a Base64 string.");
+      }
+      return internal::decode_base64(
+          std::string_view(str, yyjson_get_len(_var.val_)));
 
     } else if constexpr (std::is_same<std::remove_cvref_t<T>, bool>()) {
       if (!yyjson_is_bool(_var.val_)) {

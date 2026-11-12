@@ -13,9 +13,10 @@
 #include <string_view>
 #include <type_traits>
 
-// #include "../Result.hpp"
+#include "../Bytestring.hpp"
 #include "../always_false.hpp"
 #include "../common.hpp"
+#include "../internal/base64.hpp"
 
 namespace rfl {
 namespace json {
@@ -191,6 +192,11 @@ class RFL_API Writer {
   OutputVarType from_basic_type(const T& _var) const noexcept {
     if constexpr (std::is_same<std::remove_cvref_t<T>, std::string>()) {
       return OutputVarType(yyjson_mut_strncpy(doc(), _var.c_str(), _var.size()));
+
+    } else if constexpr (std::is_same<std::remove_cvref_t<T>, Bytestring>()) {
+      const auto encoded = internal::encode_base64(_var);
+      return OutputVarType(
+          yyjson_mut_strncpy(doc(), encoded.data(), encoded.size()));
 
     } else if constexpr (std::is_same<std::remove_cvref_t<T>, bool>()) {
       return OutputVarType(yyjson_mut_bool(doc(), _var));
