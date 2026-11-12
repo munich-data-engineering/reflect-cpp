@@ -310,6 +310,10 @@ have gotten had you read the following JSON string:
 Because you have not passed a default value to town, the default value
 of the type is used instead.
 
+Note that the struct is default-constructed before it is read. Every field
+therefore needs a valid default value, even if the field is in the input.
+This is explained in the documentation on `rfl::DefaultVal`.
+
 ### `rfl::DurationsAsCount`
 
 By default, `std::chrono::duration` types are written as an object containing

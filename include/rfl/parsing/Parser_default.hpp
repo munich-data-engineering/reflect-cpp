@@ -2,12 +2,14 @@
 #define RFL_PARSING_PARSER_DEFAULT_HPP_
 
 #include <map>
+#include <string>
 #include <type_traits>
 
 #include "../Result.hpp"
 #include "../always_false.hpp"
 #include "../internal/HasFromReflectionMethod.hpp"
 #include "../internal/always_inline.hpp"
+#include "../internal/cold.hpp"
 #include "../internal/default_if_missing_v.hpp"
 #include "../internal/has_default_val_v.hpp"
 #include "../internal/has_reflection_method_v.hpp"
@@ -720,21 +722,38 @@ struct Parser {
   static Result<T> read_struct_with_default(const R& _r,
                                             const InputVarType& _var) {
     try {
-      auto t = T{};  // This might fail, for instance if the default value does
-                     // not satisfy the validator, but in that case we will just
-                     // return the error.
-      auto view = ProcessorsType::template process<T>(to_view(t));
-      using ViewType = decltype(view);
-      auto err =
-          Parser<R, W, ViewType, ProcessorsType>::read_view_with_default(
-              _r, _var, &view);
-      if (err) [[unlikely]] {
-        return error(std::move(*err));
+      // This might fail, for instance if the default value of a field does not
+      // satisfy its validator. The outer handler is for this line only.
+      auto t = T{};
+      try {
+        auto view = ProcessorsType::template process<T>(to_view(t));
+        using ViewType = decltype(view);
+        auto err =
+            Parser<R, W, ViewType, ProcessorsType>::read_view_with_default(
+                _r, _var, &view);
+        if (err) [[unlikely]] {
+          return error(std::move(*err));
+        }
+        return t;
+      } catch (std::exception& e) {
+        return error(e.what());
       }
-      return t;
     } catch (std::exception& e) {
-      return error(e.what());
+      return error(default_construction_error(e.what()));
     }
+  }
+
+  /// The error returned by read_struct_with_default when T{} throws. On its
+  /// own, the exception reads as if the input was wrong, so we name the struct
+  /// and explain why it was default-constructed.
+  RFL_COLD static Error default_construction_error(const char* _what) {
+    const std::string reason = internal::has_default_val_v<T>
+                                   ? "it contains rfl::DefaultVal"
+                                   : "it is read with rfl::DefaultIfMissing";
+    return Error(
+        "Could not default-construct " + type_name_t<T>().str() +
+        ", which is required because " + reason +
+        ". Give every field a valid default value. Original error: " + _what);
   }
 };
 
