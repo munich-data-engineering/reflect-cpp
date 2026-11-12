@@ -17,6 +17,7 @@
 #include "rfl/Box.hpp"
 #include "rfl/Bytestring.hpp"
 #include "rfl/CamelCaseToSnakeCase.hpp"
+#include "rfl/CodePoints.hpp"
 #include "rfl/Commented.hpp"
 #include "rfl/DefaultIfMissing.hpp"
 #include "rfl/DefaultVal.hpp"
