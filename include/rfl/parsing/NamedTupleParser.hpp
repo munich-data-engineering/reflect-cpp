@@ -2,6 +2,7 @@
 #define RFL_PARSING_NAMEDTUPLEPARSER_HPP_
 
 #include <array>
+#include <exception>
 #include <map>
 #include <sstream>
 #include <type_traits>
@@ -353,11 +354,26 @@ struct NamedTupleParser {
             make_nested_error(std::string(current_name), stream.str()));
 
       } else if constexpr (!internal::has_default_val_v<NamedTupleType>) {
-        if constexpr (!std::is_const_v<ValueType>) {
-          ::new (rfl::get<_i>(_view)) ValueType();
+        using NonConstT = std::remove_const_t<ValueType>;
+        const auto ptr = const_cast<NonConstT*>(rfl::get<_i>(_view));
+        if constexpr (std::is_nothrow_default_constructible_v<NonConstT>) {
+          ::new (ptr) NonConstT();
         } else {
-          using NonConstT = std::remove_const_t<ValueType>;
-          ::new (const_cast<NonConstT*>(rfl::get<_i>(_view))) NonConstT();
+          // The default value can throw, for instance a Validator whose
+          // default value is invalid.
+          try {
+            ::new (ptr) NonConstT();
+          } catch (std::exception& e) {
+            constexpr auto current_name =
+                internal::nth_element_t<_i, FieldTypes...>::name();
+            _errors->emplace_back(make_nested_error(
+                std::string(current_name),
+                "Field named '" + std::string(current_name) +
+                    "' not found, and its default value could not be "
+                    "constructed: " +
+                    e.what()));
+            return;
+          }
         }
         std::get<_i>(*_set) = true;
       }
