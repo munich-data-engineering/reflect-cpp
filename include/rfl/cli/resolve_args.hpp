@@ -4,6 +4,8 @@
 #include <map>
 #include <set>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "../Result.hpp"
@@ -147,6 +149,20 @@ void collect_short_bool_names(
     std::set<std::string>&,
     std::index_sequence<>
 ) {}
+
+/// Returns true if a field of NamedTupleType has a short name that looks
+/// like a number, such as rfl::Short<"1", ...>. Then, as in argparse,
+/// parse_argv treats tokens like -5 and -.5 as short options rather than as
+/// negative numbers.
+template <class NamedTupleType, size_t... _is>
+consteval bool has_numeric_short_name(std::index_sequence<_is...>) {
+  const auto is_numeric = [](std::string_view _name) {
+    return !_name.empty()
+           && ((_name[0] >= '0' && _name[0] <= '9') || _name[0] == '.');
+  };
+  return (is_numeric(get_short_name<NamedTupleType, _is>().string_view())
+          || ...);
+}
 
 }  // namespace internal
 

@@ -24,7 +24,11 @@ namespace rfl::cli {
 template <class T, class... Ps>
 rfl::Result<T> read(int argc, char* argv[]) {
   using ProcessorsType = Processors<SnakeCaseToKebabCase, Ps...>;
-  return parse_argv(argc, argv)
+  using NT = rfl::internal::processed_t<T, ProcessorsType>;
+  constexpr bool negative_numbers_are_options =
+      internal::has_numeric_short_name<NT>(
+          std::make_index_sequence<NT::size()>{});
+  return internal::parse_args(argc, argv, negative_numbers_are_options)
       .and_then(resolve_args<T, ProcessorsType>)
       .and_then([](auto _args) -> rfl::Result<T> {
         const auto r = Reader();
