@@ -50,6 +50,9 @@ schema::Type type_to_avro_schema_type(
     if constexpr (std::is_same<T, Type::Boolean>()) {
       return schema::Type{.value = schema::Type::Boolean{}};
 
+    } else if constexpr (std::is_same<T, Type::Null>()) {
+      return schema::Type{.value = schema::Type::Null{}};
+
     } else if constexpr (std::is_same<T, Type::Bytestring>() ||
                          std::is_same<T, Type::Vectorstring>()) {
       return schema::Type{.value = schema::Type::Bytes{}};
