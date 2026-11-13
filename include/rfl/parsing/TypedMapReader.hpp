@@ -9,6 +9,7 @@
 
 #include "../Result.hpp"
 #include "Parser_base.hpp"
+#include "StringMapKey.hpp"
 
 namespace rfl::parsing {
 
@@ -26,7 +27,14 @@ struct TypedMapReader {
                             const InputVarType& _value) const noexcept {
     // Archive readers can pass the same stream for both arguments. Always
     // finish reading the key before starting the value, and stop on failure.
-    auto key = Parser<R, W, Key, ProcessorsType>::read(*reader, _key);
+    auto key = [&]() -> Result<Key> {
+      if constexpr (StringMapKey<Key, ProcessorsType>::enabled) {
+        return Parser<R, W, std::string, ProcessorsType>::read(*reader, _key)
+            .and_then(StringMapKey<Key, ProcessorsType>::read);
+      } else {
+        return Parser<R, W, Key, ProcessorsType>::read(*reader, _key);
+      }
+    }();
     if (!key) {
       return Error("Failed to parse map key: " + key.error().what());
     }

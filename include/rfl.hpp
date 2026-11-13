@@ -51,6 +51,7 @@
 #include "rfl/SnakeCaseToCamelCase.hpp"
 #include "rfl/SnakeCaseToKebabCase.hpp"
 #include "rfl/SnakeCaseToPascalCase.hpp"
+#include "rfl/StringifyMapKeys.hpp"
 #include "rfl/TaggedUnion.hpp"
 #include "rfl/Timestamp.hpp"
 #include "rfl/ToAllCaps.hpp"
