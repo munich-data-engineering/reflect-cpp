@@ -119,9 +119,19 @@ struct Config {
 // ./app --port=8080 --verbose --host=localhost   (long names still work)
 ```
 
-Short bool flags do not consume the next token as a value — `-v somefile`
-treats `somefile` as a positional argument, not as the value of `-v`.
-To explicitly set a bool short flag, use `=` syntax: `-v=true`, `-v=false`.
+Short bool flags (`bool`, `std::optional<bool>` and wrapped bools) do not
+consume the next token as a value — `-v somefile` treats `somefile` as a
+positional argument, not as the value of `-v`. Unlike long flags, they take
+the next token if it is `true`, `false`, `1` or `0`: `-v false` sets the
+flag to `false`. Write `-v -- 1` to pass such a token as a positional
+argument. To explicitly set a bool short flag, use `=` syntax: `-v=true`,
+`-v=false`.
+
+Any other short option takes the next token as its value unless that token
+looks like an option (`-` followed by anything except a digit or `.`):
+`-o out.csv`, `-o=out.csv`. If the value is missing, parsing fails with
+`Missing value for option '-o'.` Use `=` to pass an empty value or one that
+starts with `-`: `-o=`, `-o=-x`.
 
 ## Combining Positional and Short
 
@@ -161,12 +171,16 @@ struct Config {
 Parsing proceeds in three stages:
 
 1. **`parse_argv`** — categorizes raw tokens into `named`, `short_args`,
-   and `positional` buckets (`ParsedArgs` struct). No type information
-   needed, except that `rfl::cli::read` tells it whether a short option's
-   name looks like a number. On its own, it reads `-5` as a short option.
-2. **`resolve_args`** — uses compile-time metadata from the target struct to
-   map short aliases to long names, reclaim values from bool short flags,
-   and merge positional arguments. Produces a flat `map<string, string>`.
+   and `positional` buckets (`ParsedArgs` struct). `rfl::cli::read` gives
+   it an internal option table derived from the target struct, which says
+   what each option does with the next token and whether a short option's
+   name looks like a number. The public `parse_argv` has no table: it reads
+   `-5` as a short option.
+2. **`resolve_args`** — uses the same table to map short aliases to long
+   names and to merge positional arguments. Produces a flat
+   `map<string, string>`. The public `resolve_args<T, ProcessorsType>(parsed)`,
+   for arguments parsed without the table, also returns the tokens that bool
+   short flags took to the positional arguments.
 3. **`Reader`** — implements reflect-cpp's `IsReader` concept by presenting
    virtual tree nodes over the flat map. Each node is a `{map*, path}` pair —
    no data copying, just prefix-based lookup via `lower_bound`.
@@ -177,6 +191,7 @@ Parsing proceeds in three stages:
 - `include/rfl/cli/Reader.hpp` — Reader + `parse_value` overloads
 - `include/rfl/cli/Parser.hpp` — Parser type alias
 - `include/rfl/cli/parse_argv.hpp` — `argv` -> `ParsedArgs`
+- `include/rfl/cli/options.hpp` — the internal option table: the long, short and positional options of a struct
 - `include/rfl/cli/resolve_args.hpp` — `ParsedArgs` -> `map<string, string>`
 - `include/rfl/cli.hpp` — aggregator header
 - `include/rfl/SnakeCaseToKebabCase.hpp` — processor
