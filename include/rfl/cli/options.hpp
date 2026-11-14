@@ -70,6 +70,11 @@ struct Options {
   /// argument.
   std::vector<std::string> positionals;
 
+  /// Whether short options can be grouped (`-qv`, `-fcsv`). make_options
+  /// sets it. Without a table (the table-less parse_argv), `-abc` is the
+  /// one short option `abc`.
+  bool group_short_options = false;
+
   /// Whether tokens such as `-5` and `-.5` are short options rather than
   /// negative numbers. They are when parse_argv is called without the
   /// struct. make_options clears it unless, as in argparse, a short option's
@@ -334,6 +339,7 @@ void collect_short_and_positional(Options* _options) {
 template <class T, class ProcessorsType>
 Options make_options() {
   Options options;
+  options.group_short_options = true;
   using U = unwrapped_option_t<T, ProcessorsType>;
   if constexpr (is_option_struct_v<U>) {
     collect_options<U, ProcessorsType>(&options);
