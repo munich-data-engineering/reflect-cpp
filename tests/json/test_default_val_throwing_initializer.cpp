@@ -29,7 +29,11 @@ TEST(json, test_default_val_throwing_initializer_is_an_error_when_reading) {
   const auto res = rfl::json::read<InvalidInitializer>(R"({"retries":3})");
   ASSERT_FALSE(res);
   EXPECT_EQ(res.error().what(),
-            "Value expected to be greater than or equal to 1, but got 0.");
+            "Could not default-construct "
+            "test_default_val_throwing_initializer::InvalidInitializer, which "
+            "is required because it contains rfl::DefaultVal. Give every field "
+            "a valid default value. Original error: Value expected to be "
+            "greater than or equal to 1, but got 0.");
 }
 
 TEST(json, test_default_val_throwing_initializer_valid_default_is_used) {
