@@ -45,11 +45,10 @@ class Variant {
  public:
   /// @brief Default-constructs the Variant, initializing it with the first
   /// alternative type.
-  /// @details The first alternative type is default-constructed and stored in
-  /// the variant.
+  /// @details The first alternative type is default-constructed in place.
   Variant() : index_(IndexType()), data_(DataType()) {
     using FirstAlternative = internal::nth_element_t<0, AlternativeTypes...>;
-    move_from_type(FirstAlternative());
+    new (data_.data()) FirstAlternative();
   }
 
   /// @brief Copy-constructs the Variant from another Variant.

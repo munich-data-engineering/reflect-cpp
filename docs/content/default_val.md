@@ -52,41 +52,51 @@ const auto homer = rfl::json::read<Person, rfl::NoFieldNames>(R"(["Homer"])").va
 // homer.town == ""
 ```
 
-## All fields need a valid default value
+## Fields without a valid default value
 
-A struct that contains an `rfl::DefaultVal` is default-constructed before it is read. The fields found in the input are then written into it. This means that every field of the struct needs a valid default value, even a required field that is in the input.
+A struct that contains an `rfl::DefaultVal` is default-constructed before it is read, so that the fields missing from the input keep their default values. The fields found in the input are then replaced by the values read from it.
 
-This matters when the default value of a field's type is not valid, for instance when the field has a validator:
+Some fields have no valid default value, for instance a validator that an empty vector does not satisfy:
 
 ```cpp
+using Foods = rfl::Validator<std::vector<std::string>, rfl::Size<rfl::Minimum<1>>>;
+
 struct Person {
   rfl::DefaultVal<std::string> name = "Homer Simpson";
-  rfl::Validator<std::vector<std::string>, rfl::Size<rfl::Minimum<1>>> favorite_foods;
+  Foods favorite_foods;
 };
 
-// Fails, even though favorite_foods is in the input.
-rfl::json::read<Person>(R"({"favorite_foods":["donuts","pizza"]})");
+const auto homer = rfl::json::read<Person>(R"({"favorite_foods":["donuts","pizza"]})");
 ```
 
-An empty vector does not satisfy `rfl::Size<rfl::Minimum<1>>`, so `Person{}` throws an exception and you get the following error:
+`Person{}` throws, but `read` then constructs the struct again with the check of such a validator deferred until the input has been read. If `favorite_foods` is in the input, its invalid default value has been replaced. If it is missing, you get the error `Field named 'favorite_foods' not found.` Outside of `read`, `Person{}` still throws.
+
+A field whose default value is invalid must not be missing, even where a missing field would otherwise get its default value, that is, for an `rfl::DefaultVal` or with the `rfl::DefaultIfMissing` processor:
+
+```
+Field named 'favorite_foods' not found, and its default value is invalid: Size validation failed: Value expected to be greater than or equal to 1, but got 0.
+```
+
+Only a validator that is default-constructed in place inside the struct is deferred, also inside nested structs, `std::optional`, `std::variant`, `std::array` or `rfl::Variant`. While the struct is constructed, it holds its invalid value, which a default member initializer that reads it would see. A default member initializer that catches the exception of such a validator in order to fall back to another value might not get the exception either, depending on whether the compiler constructs the validator directly inside the struct. The struct cannot be read, and you get the error below, if the invalid default value is constructed elsewhere and then moved into the struct (as in `rfl::DefaultVal<Foods> favorite_foods = Foods();` or inside `rfl::Tuple`), if it is on the heap (as in `std::vector<Foods>(1)`), or if `Person{}` throws for another reason:
 
 ```
 Could not default-construct Person, which is required because it contains rfl::DefaultVal. Give every field a valid default value. Original error: Size validation failed: Value expected to be greater than or equal to 1, but got 0.
 ```
 
-To avoid this, give the field a valid default value:
+One case is not detected: if a default member initializer copies a validator whose default value is invalid, as in `rfl::DefaultVal<Foods> other_foods = favorite_foods;`, the copy is not checked, and it keeps the invalid value if `other_foods` is missing from the input.
+
+In all of these cases, you can give the field a valid default value:
 
 ```cpp
 struct Person {
   rfl::DefaultVal<std::string> name = "Homer Simpson";
-  rfl::Validator<std::vector<std::string>, rfl::Size<rfl::Minimum<1>>> favorite_foods =
-      std::vector<std::string>({"none"});
+  Foods favorite_foods = std::vector<std::string>({"none"});
 };
 ```
 
-The field is still required. If `favorite_foods` is missing in the input, you get the error `Field named 'favorite_foods' not found.` The default value is only used for a missing field if you pass the `rfl::DefaultIfMissing` processor.
+The field is still required. The default value is only used for a missing field if you pass the `rfl::DefaultIfMissing` processor.
 
-The same restriction applies to every struct that is read with the `rfl::DefaultIfMissing` processor, whether it contains an `rfl::DefaultVal` or not.
+All of this applies to every struct that is read with the `rfl::DefaultIfMissing` processor, whether it contains an `rfl::DefaultVal` or not. The JSON schema of a struct that cannot be default-constructed contains no default values.
 
 ## When to use
 
