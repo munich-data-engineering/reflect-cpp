@@ -10,7 +10,11 @@
 #include <utility>
 #include <vector>
 
+#include "../DefaultVal.hpp"
+#include "../Deprecated.hpp"
+#include "../Description.hpp"
 #include "../Positional.hpp"
+#include "../Rename.hpp"
 #include "../Short.hpp"
 #include "../Tuple.hpp"
 #include "../internal/StringLiteral.hpp"
@@ -61,8 +65,9 @@ struct Options {
   /// of their field.
   std::map<std::string, std::string> short_options;
 
-  /// The paths of the rfl::Positional fields, in declaration order. Each
-  /// takes one positional argument.
+  /// The paths of the rfl::Positional fields, in declaration order, wherever
+  /// rfl::Positional sits among a field's wrappers. Each takes one positional
+  /// argument.
   std::vector<std::string> positionals;
 
   /// Whether tokens such as `-5` and `-.5` are short options rather than
@@ -98,20 +103,52 @@ inline bool is_bool_literal(std::string_view _token) noexcept {
          || _token == "0";
 }
 
-/// Whether T is rfl::Short directly around rfl::Positional, or the other way
-/// round, which is a compile-time error.
+/// What rfl::Short and rfl::Positional say about a field of type T. They are
+/// found through rfl::DefaultVal, std::optional, rfl::Description,
+/// rfl::Deprecated and rfl::Rename, in any order. `count` is the number of
+/// rfl::Short and rfl::Positional wrappers; a field may have at most one.
 template <class T>
-consteval bool is_short_around_positional() {
-  if constexpr (rfl::internal::is_short_v<T>) {
-    return rfl::internal::is_positional_v<typename T::Type>;
-  }
-  else if constexpr (rfl::internal::is_positional_v<T>) {
-    return rfl::internal::is_short_v<typename T::Type>;
-  }
-  else {
-    return false;
-  }
-}
+struct cli_annotations {
+  static constexpr bool is_short = false;
+  static constexpr bool is_positional = false;
+  static constexpr rfl::internal::StringLiteral<1> short_name = "";
+  static constexpr int count = 0;
+};
+
+template <class T>
+using cli_annotations_t = cli_annotations<std::remove_cvref_t<T>>;
+
+template <class T>
+struct cli_annotations<DefaultVal<T>> : cli_annotations_t<T> {};
+
+template <class T>
+struct cli_annotations<std::optional<T>> : cli_annotations_t<T> {};
+
+template <rfl::internal::StringLiteral _description, class T>
+struct cli_annotations<Description<_description, T>> : cli_annotations_t<T> {};
+
+template <rfl::internal::StringLiteral _deprecation_message,
+          rfl::internal::StringLiteral _description, class T>
+struct cli_annotations<Deprecated<_deprecation_message, _description, T>>
+    : cli_annotations_t<T> {};
+
+template <rfl::internal::StringLiteral _name, class T>
+struct cli_annotations<Rename<_name, T>> : cli_annotations_t<T> {};
+
+template <class T>
+struct cli_annotations<Positional<T>> : cli_annotations_t<T> {
+  static constexpr bool is_short = false;
+  static constexpr bool is_positional = true;
+  static constexpr int count = cli_annotations_t<T>::count + 1;
+};
+
+template <rfl::internal::StringLiteral _name, class T>
+struct cli_annotations<Short<_name, T>> : cli_annotations_t<T> {
+  static constexpr bool is_short = true;
+  static constexpr bool is_positional = false;
+  static constexpr auto short_name = _name;
+  static constexpr int count = cli_annotations_t<T>::count + 1;
+};
 
 /// The CLI metadata of the _i-th field of a NamedTuple. InnerType is the
 /// declared type of the field, whichever wrappers it consists of.
@@ -120,17 +157,14 @@ struct field_info {
   using FieldType = rfl::tuple_element_t<_i, typename NamedTupleType::Fields>;
   using InnerType = typename FieldType::Type;
   using OuterType = std::remove_pointer_t<std::remove_cvref_t<InnerType>>;
+  using Annotations = cli_annotations_t<OuterType>;
 
-  /// Whether rfl::Positional is the outermost wrapper of the field.
-  static constexpr bool is_positional =
-      rfl::internal::is_positional_v<OuterType>;
-  /// Whether rfl::Short is the outermost wrapper of the field.
-  static constexpr bool is_short = rfl::internal::is_short_v<OuterType>;
+  static constexpr bool is_positional = Annotations::is_positional;
+  static constexpr bool is_short = Annotations::is_short;
 
-  static_assert(
-      !is_short_around_positional<OuterType>(),
-      "Nested wrappers (Positional<Short<...>> or Short<..., Positional<...>>) "
-      "are not allowed.");
+  static_assert(Annotations::count <= 1,
+                "A field can have only one rfl::Short or rfl::Positional, "
+                "wherever it sits among the field's other wrappers.");
 
   static constexpr std::string_view name() { return FieldType::name(); }
 };
@@ -140,7 +174,7 @@ template <class NamedTupleType, size_t _i>
 constexpr auto get_short_name() {
   using Info = field_info<NamedTupleType, _i>;
   if constexpr (Info::is_short) {
-    return Info::OuterType::short_name_;
+    return Info::Annotations::short_name;
   }
   else {
     return rfl::internal::StringLiteral<1>("");
