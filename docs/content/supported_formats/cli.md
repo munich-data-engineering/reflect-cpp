@@ -4,7 +4,8 @@ breadcrumbs: true
 
 # rfl::cli — Command-Line Argument Parser
 
-Parse `argc`/`argv` into any reflectable struct via `rfl::cli::read<T>(argc, argv)`.
+Parse `argc`/`argv` into any reflectable struct via `rfl::cli::read<T>(argc, argv)`,
+or a sequence of arguments via `rfl::cli::read<T>(args)`.
 
 ## Usage
 
@@ -27,6 +28,46 @@ int main(int argc, char* argv[]) {
 
 Field names undergo automatic `snake_case` -> `kebab-case` conversion:
 `host_name` matches `--host-name`.
+
+`argv` may be `char*[]` or `const char*[]`. `argv[0]` is the program name
+and is skipped.
+
+## Passing a sequence of arguments
+
+When the arguments do not come straight from `main`, pass them as a range,
+such as `std::vector<std::string>`, `std::vector<std::string_view>`,
+`std::span<char*>` or `const char* const[]`, or as a braced list of strings.
+Ranges of wide strings (`std::vector<std::wstring>`, `const wchar_t*[]`) are
+converted to UTF-8. A null pointer in a range or array of pointers is an
+error. A braced list holds `std::string_view`s, so a null pointer in it is
+undefined behaviour; pass a `std::vector` or an array of pointers instead.
+
+The parser keeps a `std::string_view` to each narrow argument, so a range of
+narrow strings must be a `std::forward_range` of lvalue strings, pointers or
+`std::string_view`s. `std::views::istream<std::string>`, or a view that
+yields temporary `std::string`s, does not compile; copy the arguments into a
+`std::vector<std::string>` first.
+
+**Every element is parsed: unlike `read(argc, argv)`, the first one is not
+skipped as the program name.** So `std::span(argv, argc)` would read the
+program name as an argument (for a struct with a `rfl::Positional` field, as
+its first value).
+
+```cpp
+// ./app serve --host-name=localhost --port=8080 --verbose --tags=a,b
+int main(int argc, char* argv[]) {
+  // argv[0] is the program name, argv[1] a subcommand the program handles.
+  const auto rest = std::span(argv, argc).subspan(std::min(argc, 2));
+  const auto result = rfl::cli::read<Config>(rest);
+}
+
+// Arguments from somewhere other than main:
+const std::vector<std::string> args = {"--host-name=localhost", "--port=8080",
+                                       "--verbose", "--tags=a,b"};
+const auto result = rfl::cli::read<Config>(args);
+```
+
+`rfl::cli::parse_argv` has the same overloads.
 
 ## Positional arguments
 
