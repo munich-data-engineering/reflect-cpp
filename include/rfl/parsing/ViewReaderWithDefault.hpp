@@ -2,6 +2,7 @@
 #define RFL_PARSING_VIEWREADERWITHDEFAULT_HPP_
 
 #include <array>
+#include <memory>
 #include <sstream>
 #include <string_view>
 #include <type_traits>
@@ -145,11 +146,20 @@ class ViewReaderWithDefault {
 
   template <class Target, class Source>
   static void move_to(Target* _t, Source* _s) {
-    if constexpr (std::is_const_v<Target>) {
-      return move_to(const_cast<std::remove_const_t<Target>*>(_t), _s);
-    } else if constexpr (!rfl::internal::is_array_v<Source> &&
-                         !std::is_array_v<Target>) {
-      *_t = Target(std::move(*_s));
+    if constexpr (!rfl::internal::is_array_v<Source> &&
+                  !std::is_array_v<Target>) {
+      if constexpr (std::is_const_v<Target>) {
+        // The struct was default-constructed, so *_t is a live const object
+        // and must not be assigned to. Re-create it in place instead. If the
+        // constructor throws, we are inside a noexcept function, so it cannot
+        // be destroyed twice.
+        using NonConstTarget = std::remove_const_t<Target>;
+        auto* const ptr = const_cast<NonConstTarget*>(_t);
+        std::destroy_at(ptr);
+        ::new (ptr) NonConstTarget(std::move(*_s));
+      } else {
+        *_t = Target(std::move(*_s));
+      }
     } else if constexpr (rfl::internal::is_array_v<Source>) {
       static_assert(std::is_array_v<Target>,
                     "Expected target to be a c-array.");
