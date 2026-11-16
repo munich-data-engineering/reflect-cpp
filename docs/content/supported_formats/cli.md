@@ -51,6 +51,17 @@ The `--` separator forces all subsequent tokens into positional:
 ./app --verbose -- --not-a-flag.txt
 ```
 
+A token that starts with `-` and a digit or `.`, such as `-5`, `-1.5` or
+`-1e3`, is a negative number, so it is read as a positional argument (or as
+the value of a short option: `-n -5`). `-inf` and `-nan` start with a letter
+and are read as short options; pass them after `--` or as `--offset=-inf`.
+
+This changes if the struct has a short option whose name looks like a
+number, such as `rfl::Short<"1", bool>` for `ls -1`. Then such a token is a
+short option, and negative positional arguments need `--`:
+`./app -1 -- -5`. Right after a short option, such a token is still read as
+that option's value, as any other token is: `-n -1` sets `n` to `-1`.
+
 ## Short aliases
 
 Wrap a field with `rfl::Short<"x", T>` to add a single-character alias:
@@ -109,7 +120,9 @@ struct Config {
 Parsing proceeds in three stages:
 
 1. **`parse_argv`** — categorizes raw tokens into `named`, `short_args`,
-   and `positional` buckets (`ParsedArgs` struct). No type information needed.
+   and `positional` buckets (`ParsedArgs` struct). No type information
+   needed, except that `rfl::cli::read` tells it whether a short option's
+   name looks like a number. On its own, it reads `-5` as a short option.
 2. **`resolve_args`** — uses compile-time metadata from the target struct to
    map short aliases to long names, reclaim values from bool short flags,
    and merge positional arguments. Produces a flat `map<string, string>`.

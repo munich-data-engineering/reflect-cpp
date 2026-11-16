@@ -26,20 +26,15 @@ inline bool looks_like_option(std::string_view _token) noexcept {
          && _token[1] != '.';
 }
 
-/// Parses command-line arguments into categorized buckets.
-/// Handles three types of arguments:
-/// - Long options: --key=value or --flag (stored in `named`)
-/// - Short options: -x value, -x=value, or -x (stored in `short_args`)  
-/// - Positional arguments: bare arguments not prefixed with dashes (stored in `positional`)
-/// The special argument "--" forces all subsequent arguments to be treated as positional.
-/// @param argc Number of command-line arguments
-/// @param argv Array of command-line argument strings
-/// @return A Result containing ParsedArgs with categorized arguments or an error
-/// --key=value / --flag → named
-/// -x value / -x=value / -x → short_args
-/// bare arguments → positional
-/// -- → everything after goes to positional
-inline rfl::Result<ParsedArgs> parse_argv(int argc, char* argv[]) {
+namespace internal {
+
+/// Parses command-line arguments as parse_argv does. A token that looks like
+/// a negative number (-5, -.5) is a positional argument unless
+/// `_negative_numbers_are_options` is true, as it is when the target struct
+/// has a short option whose name looks like a number (rfl::Short<"1", ...>).
+/// Then such tokens are short options, as in argparse.
+inline rfl::Result<ParsedArgs> parse_args(int argc, char* argv[],
+                                          bool _negative_numbers_are_options) {
   if (argc < 0 || (argc > 0 && !argv)) {
     return error("Invalid argc/argv.");
   }
@@ -91,7 +86,11 @@ inline rfl::Result<ParsedArgs> parse_argv(int argc, char* argv[]) {
     }
 
     // Short argument: -x value, -x=value, or -x (bool).
-    if (arg_raw.size() >= 2 && arg_raw[0] == '-') {
+    // A negative number such as -5 or -.5 is not an option; it falls through
+    // to positional, unless the struct has a short option such as -1.
+    if (looks_like_option(arg_raw)
+        || (_negative_numbers_are_options && arg_raw.size() >= 2
+            && arg_raw[0] == '-')) {
       const auto arg = arg_raw.substr(1);
       const auto eq = arg.find('=');
 
@@ -119,6 +118,28 @@ inline rfl::Result<ParsedArgs> parse_argv(int argc, char* argv[]) {
     result.positional.emplace_back(arg_raw);
   }
   return result;
+}
+
+}  // namespace internal
+
+/// Parses command-line arguments into categorized buckets.
+/// Handles three types of arguments:
+/// - Long options: --key=value or --flag (stored in `named`)
+/// - Short options: -x value, -x=value, or -x (stored in `short_args`)
+/// - Positional arguments: bare arguments not prefixed with dashes (stored in `positional`)
+/// The special argument "--" forces all subsequent arguments to be treated as positional.
+/// Without the target struct, a token such as -5 or -.5 is a short option.
+/// rfl::cli::read, which knows the struct, reads it as a negative number
+/// unless the struct has a short option like rfl::Short<"1", ...>.
+/// @param argc Number of command-line arguments
+/// @param argv Array of command-line argument strings
+/// @return A Result containing ParsedArgs with categorized arguments or an error
+/// --key=value / --flag → named
+/// -x value / -x=value / -x → short_args
+/// bare arguments → positional
+/// -- → everything after goes to positional
+inline rfl::Result<ParsedArgs> parse_argv(int argc, char* argv[]) {
+  return internal::parse_args(argc, argv, true);
 }
 
 /// Parses wide-character command-line arguments into categorized buckets.
