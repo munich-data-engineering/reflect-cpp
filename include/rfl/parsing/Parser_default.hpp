@@ -71,6 +71,7 @@
 #include "schema/Type.hpp"
 #include "schemaful/IsSchemafulReader.hpp"
 #include "schemaful/IsSchemafulWriter.hpp"
+#include "tagged_union_wrapper_no_ptr.hpp"
 
 namespace rfl::parsing {
 
@@ -664,9 +665,19 @@ struct Parser {
 
       } else {
         using NamedTupleType = internal::processed_t<U, ProcessorsType>;
+        // The schema takes the default values of rfl::DefaultVal fields from
+        // a default-constructed instance. A tagged union wrapper holds its
+        // alternative through a pointer that U{} leaves null, so we construct
+        // the wrapper that holds the alternative by value instead.
+        using DefaultsType = tagged_union_wrapper_no_ptr_t<U>;
         if constexpr (internal::has_default_val_v<U>) {
-          auto t = U{};
-          auto view = ProcessorsType::template process<U>(to_view(t));
+          static_assert(requires { DefaultsType{}; },
+                        "A struct with rfl::DefaultVal fields must be "
+                        "default-constructible, because the default values "
+                        "come from a default-constructed instance.");
+          auto defaults = DefaultsType{};
+          auto view = ProcessorsType::template process<DefaultsType>(
+              to_view(defaults));
           (*_definitions)[name] =
               Parser<R, W, NamedTupleType, ProcessorsType>::to_schema(
                   _definitions, &view);
@@ -721,6 +732,10 @@ struct Parser {
   /// so we only use it when the DefaultIfMissing preprocessor is added.
   static Result<T> read_struct_with_default(const R& _r,
                                             const InputVarType& _var) {
+    static_assert(!internal::has_default_val_v<T> || requires { T{}; },
+                  "A struct with rfl::DefaultVal fields must be "
+                  "default-constructible, because the default values come "
+                  "from a default-constructed instance.");
     try {
       // This might fail, for instance if the default value of a field does not
       // satisfy its validator. The outer handler is for this line only.
