@@ -4,6 +4,7 @@
 #include <array>
 #include <exception>
 #include <map>
+#include <optional>
 #include <sstream>
 #include <type_traits>
 #include <utility>
@@ -187,23 +188,24 @@ struct NamedTupleParser {
    * @param _r The reader to use.
    * @param _var The input variable to read from.
    * @param _view The view to read into.
+   * @param _found If not null, receives which fields the input contains.
    * @return An optional error.
    */
   static std::optional<Error> read_view_with_default(
-      const R& _r, const InputVarType& _var,
-      NamedTuple<FieldTypes...>* _view) noexcept {
+      const R& _r, const InputVarType& _var, NamedTuple<FieldTypes...>* _view,
+      std::array<bool, size_>* _found = nullptr) noexcept {
     if constexpr (_no_field_names) {
       auto arr = _r.to_array(_var);
       if (!arr) [[unlikely]] {
         return arr.error();
       }
-      return read_object_or_array_with_default(_r, *arr, _view);
+      return read_object_or_array_with_default(_r, *arr, _view, _found);
     } else {
       auto obj = _r.to_object(_var);
       if (!obj) [[unlikely]] {
         return obj.error();
       }
-      return read_object_or_array_with_default(_r, *obj, _view);
+      return read_object_or_array_with_default(_r, *obj, _view, _found);
     }
   }
 
@@ -233,14 +235,19 @@ struct NamedTupleParser {
    * @brief Generates the schema for the named tuple.
    *
    * @param _definitions The map of definitions to add to.
+   * @param _view A default-constructed instance to take the default values of
+   *         rfl::DefaultVal fields from.
+   * @param _no_default The fields of _view whose default value is invalid.
+   *         They get no default value and are required.
    * @return The schema type.
    */
   template <typename View = void>
   static schema::Type to_schema(
       std::map<std::string, schema::Type>* _definitions,
-      View* _view = nullptr) noexcept {
+      View* _view = nullptr,
+      const std::array<bool, size_>* _no_default = nullptr) noexcept {
     SchemaType schema;
-    build_schema(_definitions, &schema, _view,
+    build_schema(_definitions, &schema, _view, _no_default,
                  std::make_integer_sequence<int, size_>());
     return schema::Type{schema};
   }
@@ -287,13 +294,18 @@ struct NamedTupleParser {
   static void add_field_to_schema(
       std::map<std::string, schema::Type>* _definitions,
       SchemaType* _schema,
-      View* _view) noexcept {
+      View* _view,
+      const std::array<bool, size_>* _no_default) noexcept {
     using F = internal::nth_element_t<_i, FieldTypes...>;
     using U = std::remove_cvref_t<typename F::Type>;
     if constexpr (!internal::is_skip_v<U> && !internal::is_extra_fields_v<U>) {
       // Add default value here
       auto s = Parser<R, W, U, ProcessorsType>::to_schema(_definitions);
-      if constexpr (!std::is_same_v<View, void> && internal::CanEmitDefault<U>) {
+      if (_no_default && std::get<_i>(*_no_default)) [[unlikely]] {
+        // Its default value is invalid, so reading requires the field.
+        remove_default_val(&s);
+      } else if constexpr (!std::is_same_v<View, void> &&
+                           internal::CanEmitDefault<U>) {
         s.variant_.visit([&](auto& value) {
           if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>,
                                        schema::Type::DefaultVal>) {
@@ -317,12 +329,34 @@ struct NamedTupleParser {
     (add_field_to_object<_is>(_w, _tup, _ptr), ...);
   }
 
+  /// Replaces the DefaultVal node in _schema by the type it holds, which
+  /// makes the field required. Description and Deprecated wrap the DefaultVal
+  /// node in one of their own.
+  static void remove_default_val(schema::Type* _schema) {
+    std::optional<schema::Type> inner;
+    _schema->variant_.visit([&](auto& _s) {
+      using S = std::remove_cvref_t<decltype(_s)>;
+      if constexpr (std::is_same_v<S, schema::Type::DefaultVal>) {
+        inner = *_s.type_;
+      } else if constexpr (std::is_same_v<S, schema::Type::Description> ||
+                           std::is_same_v<S, schema::Type::Deprecated>) {
+        remove_default_val(&*_s.type_);
+      }
+    });
+    if (inner) {
+      *_schema = std::move(*inner);
+    }
+  }
+
   template <typename View,  int... _is>
   static void build_schema(std::map<std::string, schema::Type>* _definitions,
                            SchemaType* _schema,
                            View* _view,
+                           const std::array<bool, size_>* _no_default,
                            std::integer_sequence<int, _is...>) noexcept {
-    (add_field_to_schema<View, _is>(_definitions, _schema, _view), ...);
+    (add_field_to_schema<View, _is>(_definitions, _schema, _view,
+                                    _no_default),
+     ...);
 
     if constexpr (NamedTupleType::pos_extra_fields() != -1) {
       using F = internal::nth_element_t<NamedTupleType::pos_extra_fields(),
@@ -500,7 +534,7 @@ struct NamedTupleParser {
 
   static std::optional<Error> read_object_or_array_with_default(
       const R& _r, const InputObjectOrArrayType& _obj_or_arr,
-      NamedTupleType* _view) noexcept {
+      NamedTupleType* _view, std::array<bool, size_>* _found) noexcept {
     FieldErrors<ProcessorsType> errors;
     const auto reader = ViewReaderWithDefaultType(&_r, _view, &errors);
     if constexpr (_no_field_names) {
@@ -513,6 +547,9 @@ struct NamedTupleParser {
       if (err) [[unlikely]] {
         return err;
       }
+    }
+    if (_found) [[unlikely]] {
+      *_found = reader.found();
     }
     if constexpr (internal::has_default_val_v<NamedTupleType> &&
                   !internal::default_if_missing_v<ProcessorsType>) {

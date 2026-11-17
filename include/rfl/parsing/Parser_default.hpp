@@ -1,12 +1,19 @@
 #ifndef RFL_PARSING_PARSER_DEFAULT_HPP_
 #define RFL_PARSING_PARSER_DEFAULT_HPP_
 
+#include <array>
+#include <atomic>
+#include <exception>
 #include <map>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <type_traits>
+#include <utility>
 
 #include "../Result.hpp"
 #include "../always_false.hpp"
+#include "../internal/DeferredDefaults.hpp"
 #include "../internal/HasFromReflectionMethod.hpp"
 #include "../internal/always_inline.hpp"
 #include "../internal/cold.hpp"
@@ -25,6 +32,8 @@
 #include "../internal/to_ptr_named_tuple.hpp"
 #include "../to_view.hpp"
 #include "AreReaderAndWriter.hpp"
+#include "check_default_value.hpp"
+#include "FieldErrors.hpp"
 #include "MapParser.hpp"
 #include "Parent.hpp"
 #include "ParserArray.hpp"
@@ -72,6 +81,8 @@
 #include "schemaful/IsSchemafulReader.hpp"
 #include "schemaful/IsSchemafulWriter.hpp"
 #include "tagged_union_wrapper_no_ptr.hpp"
+#include "to_single_error_message.hpp"
+#include "wrap_error.hpp"
 
 namespace rfl::parsing {
 
@@ -675,12 +686,8 @@ struct Parser {
                         "A struct with rfl::DefaultVal fields must be "
                         "default-constructible, because the default values "
                         "come from a default-constructed instance.");
-          auto defaults = DefaultsType{};
-          auto view = ProcessorsType::template process<DefaultsType>(
-              to_view(defaults));
           (*_definitions)[name] =
-              Parser<R, W, NamedTupleType, ProcessorsType>::to_schema(
-                  _definitions, &view);
+              schema_with_defaults<DefaultsType, NamedTupleType>(_definitions);
         } else {
           (*_definitions)[name] =
               Parser<R, W, NamedTupleType, ProcessorsType>::to_schema(
@@ -689,6 +696,42 @@ struct Parser {
       }
     }
     return Type{Type::Reference{name}};
+  }
+
+  /// The schema of U with the default values of its rfl::DefaultVal fields,
+  /// which are taken from a default-constructed instance. If constructing it
+  /// throws because the default value of a Validator is invalid, it is
+  /// constructed again with such Validators deferred, as read_struct_with_default
+  /// does (see internal::DeferredDefaults). The fields whose default value is
+  /// invalid, or cannot be checked, get no default value and are required, as
+  /// reading requires them. If an invalid default value has been used up while
+  /// constructing, the schema has no default values at all. Anything else that
+  /// throws is passed on.
+  template <class U, class NamedTupleType>
+  static schema::Type schema_with_defaults(
+      std::map<std::string, schema::Type>* _definitions) {
+    internal::DeferredDefaults deferred;
+    auto defaults = default_construct<U>(&deferred);
+    auto view = ProcessorsType::template process<U>(to_view(defaults));
+    using ViewType = decltype(view);
+    if (deferred.num() == 0) [[likely]] {
+      return Parser<R, W, NamedTupleType, ProcessorsType>::to_schema(
+          _definitions, &view);
+    }
+    if (!holds_all_deferred(deferred, view)) {
+      auto all_no_default = std::array<bool, ViewType::size()>{};
+      all_no_default.fill(true);
+      return Parser<R, W, NamedTupleType, ProcessorsType>::to_schema(
+          _definitions, &view, &all_no_default);
+    }
+    auto no_default = std::array<bool, ViewType::size()>{};
+    for_each_field(view, [&](size_t _i, const auto& _field) {
+      auto check = DefaultValueCheck{};
+      check_default_value(_field, &check);
+      no_default[_i] = check.invalid || check.unchecked;
+    });
+    return Parser<R, W, NamedTupleType, ProcessorsType>::to_schema(
+        _definitions, &view, &no_default);
   }
 
   template <class U>
@@ -736,16 +779,37 @@ struct Parser {
                   "A struct with rfl::DefaultVal fields must be "
                   "default-constructible, because the default values come "
                   "from a default-constructed instance.");
+    internal::DeferredDefaults deferred;
     try {
       // This might fail, for instance if the default value of a field does not
-      // satisfy its validator. The outer handler is for this line only.
-      auto t = T{};
+      // satisfy its validator and validation cannot be deferred. The outer
+      // handler is for this line only.
+      auto t = default_construct<T>(&deferred);
       try {
         auto view = ProcessorsType::template process<T>(to_view(t));
         using ViewType = decltype(view);
+        const bool any_deferred = deferred.num() != 0;
+        if (any_deferred && !holds_all_deferred(deferred, view)) [[unlikely]] {
+          return error(default_construction_error(
+              deferred.first_error()->what().c_str()));
+        }
+        auto found = std::array<bool, ViewType::size()>{};
+        bool extra_was_empty = false;
+        if constexpr (ViewType::pos_extra_fields() != -1) {
+          extra_was_empty =
+              rfl::get<ViewType::pos_extra_fields()>(view)->empty();
+        }
         auto err =
             Parser<R, W, ViewType, ProcessorsType>::read_view_with_default(
-                _r, _var, &view);
+                _r, _var, &view, any_deferred ? &found : nullptr);
+        if (!err && any_deferred) [[unlikely]] {
+          if constexpr (ViewType::pos_extra_fields() != -1) {
+            if (extra_was_empty) {
+              found[ViewType::pos_extra_fields()] = true;
+            }
+          }
+          err = check_deferred_defaults(view, found);
+        }
         if (err) [[unlikely]] {
           return error(std::move(*err));
         }
@@ -756,6 +820,114 @@ struct Parser {
     } catch (std::exception& e) {
       return error(default_construction_error(e.what()));
     }
+  }
+
+  /// Returns U{}. If that throws, for instance because the default value of a
+  /// Validator is invalid, we try again with such Validators deferred to
+  /// _deferred (see internal::DeferredDefaults).
+  template <class U>
+  static U default_construct(internal::DeferredDefaults* _deferred) {
+    // Whether that has been necessary before, so that the first try would
+    // throw again. This is only a shortcut, so relaxed is enough.
+    static std::atomic<bool> defer_right_away = false;
+    if (!defer_right_away.load(std::memory_order_relaxed)) {
+      try {
+        // A read inside a default member initializer of a struct that we are
+        // constructing with deferred Validators must not defer its own.
+        const auto not_deferred = internal::DeferredDefaults::Scope(nullptr);
+        return U{};
+      } catch (std::exception&) {
+      }
+    }
+    struct SetDeferRightAway {
+      const internal::DeferredDefaults* deferred;
+      std::atomic<bool>* flag;
+      int uncaught;
+      ~SetDeferRightAway() {
+        if (std::uncaught_exceptions() == uncaught && deferred->num() != 0) {
+          flag->store(true, std::memory_order_relaxed);
+        }
+      }
+    };
+    const auto scope = internal::DeferredDefaults::Scope(_deferred);
+    const auto on_exit = SetDeferRightAway{_deferred, &defer_right_away,
+                                           std::uncaught_exceptions()};
+    return U{};
+  }
+
+  /// Whether the struct still holds as many invalid Validators as have been
+  /// deferred. If one of them has been used up while constructing it, for
+  /// instance a temporary in a default member initializer, or is inside a
+  /// type that check_default_value cannot look into, we cannot tell where its
+  /// value went. Copies can make up for a used-up one, though.
+  template <class ViewType>
+  static bool holds_all_deferred(const internal::DeferredDefaults& _deferred,
+                                 const ViewType& _view) {
+    auto check = DefaultValueCheck{.stop_early = false};
+    for_each_field(_view, [&](size_t, const auto& _field) {
+      check_default_value(_field, &check);
+    });
+    return check.num_invalid >= _deferred.num();
+  }
+
+  /// Returns an error if the default value of a field that is missing from
+  /// the input holds a Validator whose value is invalid, or a type that
+  /// check_default_value cannot look into. The fields that the input contains
+  /// have been replaced by values that were read as a whole (see
+  /// ViewReaderWithDefault and ViewReaderWithDefaultAndStrippedFieldNames).
+  template <class ViewType>
+  static std::optional<Error> check_deferred_defaults(
+      const ViewType& _view, const std::array<bool, ViewType::size()>& _found) {
+    constexpr auto names = field_names<ViewType>(
+        std::make_index_sequence<ViewType::size()>());
+    FieldErrors<ProcessorsType> errors;
+    for_each_field(_view, [&](size_t _i, const auto& _field) {
+      if (_found[_i] || should_stop_on_field_error<ProcessorsType>(errors)) {
+        return;
+      }
+      auto check = DefaultValueCheck{};
+      check_default_value(_field, &check);
+      if (!check.invalid && !check.unchecked) [[likely]] {
+        return;
+      }
+      const auto name = std::string(names[_i]);
+      const auto why = check.invalid
+                           ? "is invalid: " + check.invalid->what()
+                           : "could not be checked: " + *check.unchecked;
+      errors.emplace_back(make_nested_error(
+          name, "Field named '" + name + "' not found, and its default value " +
+                    why));
+    });
+    if constexpr (internal::fail_fast_v<ProcessorsType>) {
+      return std::move(errors).error();
+    } else {
+      if (errors.empty()) {
+        return std::nullopt;
+      }
+      return to_single_error(std::move(errors));
+    }
+  }
+
+  template <class ViewType, size_t... _is>
+  static constexpr auto field_names(std::index_sequence<_is...>) {
+    return std::array<std::string_view, sizeof...(_is)>{
+        tuple_element_t<_is, typename ViewType::Fields>::name()...};
+  }
+
+  /// Calls _f(i, field) for every field i of _view that points into the
+  /// struct.
+  template <class ViewType, class F>
+  static void for_each_field(const ViewType& _view, const F& _f) {
+    [&]<size_t... _is>(std::index_sequence<_is...>) {
+      const auto call = [&]<size_t _i>(std::integral_constant<size_t, _i>) {
+        using Type =
+            typename tuple_element_t<_i, typename ViewType::Fields>::Type;
+        if constexpr (std::is_pointer_v<Type>) {
+          _f(_i, *rfl::get<_i>(_view));
+        }
+      };
+      (call(std::integral_constant<size_t, _is>{}), ...);
+    }(std::make_index_sequence<ViewType::size()>());
   }
 
   /// The error returned by read_struct_with_default when T{} throws. On its
