@@ -11,9 +11,12 @@ namespace test_default_construct_error {
 using Foods =
     rfl::Validator<std::vector<std::string>, rfl::Size<rfl::Minimum<1>>>;
 
+// Reading defers only the check of a default-constructed Validator (see
+// test_default_val_with_validator.cpp), never that of an invalid value that
+// is given explicitly.
 struct Person {
   rfl::DefaultVal<std::string> name = "Homer Simpson";
-  Foods favorite_foods;
+  Foods favorite_foods = std::vector<std::string>();
 };
 
 struct PersonWithValidDefault {
@@ -23,7 +26,7 @@ struct PersonWithValidDefault {
 
 struct Pet {
   std::string name;
-  Foods favorite_foods;
+  Foods favorite_foods = std::vector<std::string>();
 };
 
 struct Family {

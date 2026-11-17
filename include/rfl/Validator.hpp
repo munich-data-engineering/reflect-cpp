@@ -9,7 +9,9 @@
 
 #include "AllOf.hpp"
 #include "Result.hpp"
+#include "internal/DeferredDefaults.hpp"
 #include "internal/HasValidation.hpp"
+#include "internal/cold.hpp"
 
 namespace rfl {
 
@@ -52,8 +54,10 @@ struct Validator {
   }
 
   /// Default constructor - validates a default-constructed T.
-  /// @throws std::exception if validation of the default value fails
-  Validator() : value_(ValidationType::validate(T()).value()) {}
+  /// @throws std::exception if validation of the default value fails, unless
+  /// the parser is default-constructing a struct to read into, see
+  /// internal::DeferredDefaults.
+  Validator() : value_(valid_or_deferred()) {}
 
   /// Move constructor.
   /// @param _other The validator to move from
@@ -196,6 +200,42 @@ struct Validator {
   struct AlreadyValidated {};
 
   Validator(AlreadyValidated, T&& _value) : value_(std::move(_value)) {}
+
+  /// Returns the validated default value. If it is invalid, this throws,
+  /// unless the parser defers its validation, see internal::DeferredDefaults.
+  static T valid_or_deferred() {
+    if constexpr (std::is_copy_constructible_v<T>) {
+      auto val = T();
+      auto res = ValidationType::validate(val);
+      if (!res) [[unlikely]] {
+        return deferred_or_throw(res.error(), std::move(val));
+      }
+      return *std::move(res);
+    } else {
+      const auto saved_num = internal::DeferredDefaults::current_num();
+      auto res = ValidationType::validate(T());
+      if (!res) [[unlikely]] {
+        return deferred_or_throw_reconstruct(res.error(), saved_num);
+      }
+      return *std::move(res);
+    }
+  }
+
+  RFL_COLD static T deferred_or_throw(const Error& _err, T&& _val) {
+    if (!internal::DeferredDefaults::defer(_err)) {
+      Result<T>(error(_err)).value();
+    }
+    return std::move(_val);
+  }
+
+  RFL_COLD static T deferred_or_throw_reconstruct(const Error& _err,
+                                                  size_t _saved_num) {
+    internal::DeferredDefaults::reset_num(_saved_num);
+    if (!internal::DeferredDefaults::defer(_err)) {
+      Result<T>(error(_err)).value();
+    }
+    return T();
+  }
 
   /// Wraps the result of a validation without throwing if it failed.
   static Result<Validator> wrap_validated(Result<T>&& _res) {
