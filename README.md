@@ -353,6 +353,13 @@ int main(int argc, char* argv[]) {
 
 Field names are automatically converted from `snake_case` to `kebab-case` (`host_name` matches `--host-name`).
 
+`rfl::cli::read` also takes a range of arguments, such as a `std::vector<std::string>`, and parses every element ([details](https://munich-data-engineering.github.io/reflect-cpp/cli#passing-a-sequence-of-arguments)):
+
+```cpp
+const std::vector<std::string> args = {"--host-name=localhost", "--port=8080"};
+const auto config = rfl::cli::read<Config>(args);
+```
+
 You can mark fields as positional arguments with `rfl::Positional<T>` and add single-character aliases with `rfl::Short<"x", T>`:
 
 ```cpp
