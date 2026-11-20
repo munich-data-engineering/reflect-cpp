@@ -252,6 +252,26 @@ The resulting JSON looks like this:
 
 Because the tag is external, this is called *externally tagged*. It is the standard in Rust's [serde-json](https://serde.rs/enum-representations.html).
 
+## `std::monostate`
+
+`std::monostate` is serialized as `null`. A `std::variant` or `rfl::Variant` whose
+first alternative is `std::monostate` behaves like `std::optional`: as a field, it is
+omitted when it holds `std::monostate` and a missing field is read as `std::monostate`.
+
+```cpp
+struct Order {
+  std::variant<std::monostate, std::string, int> price;
+};
+
+rfl::json::write(Order{.price = std::monostate{}});  // {}
+rfl::json::write(Order{.price = 2});                 // {"price":2}
+```
+
+Both `{}` and `{"price":null}` are read as `std::monostate`.
+
+As with `std::optional`, passing `rfl::NoOptionals` writes the field as `null`
+(`{"price":null}`) and makes it required on read.
+
 
 ## The visitor pattern
 
