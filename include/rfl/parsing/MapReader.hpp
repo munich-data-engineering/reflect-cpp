@@ -11,6 +11,7 @@
 #include "../always_false.hpp"
 #include "../internal/has_reflection_type_v.hpp"
 #include "Parser_base.hpp"
+#include "StringMapKey.hpp"
 #include "wrap_error.hpp"
 
 namespace rfl::parsing {
@@ -84,8 +85,11 @@ class MapReader {
       }
     };
 
-    if constexpr (std::is_integral_v<KeyType> ||
-                  std::is_floating_point_v<KeyType>) {
+    if constexpr (StringMapKey<KeyType, ProcessorsType>::enabled) {
+      return StringMapKey<KeyType, ProcessorsType>::read(_pair.first)
+          .and_then(to_pair);
+    } else if constexpr (std::is_integral_v<KeyType> ||
+                         std::is_floating_point_v<KeyType>) {
       return key_to_numeric<KeyType>(_pair).and_then(to_pair);
 
     } else if constexpr (internal::has_reflection_type_v<KeyType>) {
