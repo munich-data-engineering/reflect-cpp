@@ -19,6 +19,7 @@
 #include "../Result.hpp"
 #include "../always_false.hpp"
 #include "../internal/base64.hpp"
+#include "../parsing/supports_read_all.hpp"
 
 namespace rfl {
 namespace json {
@@ -54,8 +55,9 @@ struct Reader {
   using InputObjectType = YYJSONInputObject;
   using InputVarType = YYJSONInputVar;
 
-  /// Compile-time flag indicating whether type T has a custom constructor from JSON.
-  /// If true, the type provides a static from_json_obj() method for custom deserialization.
+  /// Compile-time flag indicating whether type T has a custom constructor from
+  /// JSON. If true, the type provides a static from_json_obj() method for
+  /// custom deserialization.
   template <class T>
   static constexpr bool has_custom_constructor =
       (requires(InputVarType var) { T::from_json_obj(var); });
@@ -63,7 +65,8 @@ struct Reader {
   /// Retrieves an element from a JSON array by index.
   /// @param _idx The zero-based index of the element to retrieve
   /// @param _arr The JSON array to read from
-  /// @return Result containing the element value, or an error if index is out of bounds
+  /// @return Result containing the element value, or an error if index is out
+  /// of bounds
   rfl::Result<InputVarType> get_field_from_array(
       const size_t _idx, const InputArrayType _arr) const noexcept {
     const auto var = InputVarType(yyjson_arr_get(_arr.val_, _idx));
@@ -76,7 +79,8 @@ struct Reader {
   /// Retrieves a field from a JSON object by name.
   /// @param _name The name of the field to retrieve
   /// @param _obj The JSON object to read from
-  /// @return Result containing the field value, or an error if field is not found
+  /// @return Result containing the field value, or an error if field is not
+  /// found
   rfl::Result<InputVarType> get_field_from_object(
       const std::string& _name, const InputObjectType _obj) const noexcept {
     const auto var = InputVarType(yyjson_obj_get(_obj.val_, _name.c_str()));
@@ -95,34 +99,44 @@ struct Reader {
 
   /// Reads all elements from a JSON array using a provided array reader.
   /// The array reader's read() method is called for each element in the array.
-  /// @tparam ArrayReader Type that provides a read() method for processing elements
+  /// @tparam ArrayReader Type that provides a read() method for processing
+  /// elements
   /// @param _array_reader The reader object used to process each array element
   /// @param _arr The JSON array to read from
   /// @return std::nullopt on success, or an Error if reading fails
   template <class ArrayReader>
   std::optional<Error> read_array(const ArrayReader& _array_reader,
                                   const InputArrayType& _arr) const noexcept {
-    const auto size = yyjson_arr_size(_arr.val_);
-    if constexpr (requires { _array_reader.reserve(size); }) {
-      if (auto err = _array_reader.reserve(size)) {
-        return err;
+    if constexpr (parsing::supports_read_all<ArrayReader>) {
+      return [&]<size_t... _is>(std::integer_sequence<size_t, _is...>) {
+        return _array_reader.read_all(get_field_from_array(_is, _arr)...);
+      }(std::make_index_sequence<ArrayReader::size()>());
+
+    } else {
+      const auto size = yyjson_arr_size(_arr.val_);
+      if constexpr (requires { _array_reader.reserve(size); }) {
+        if (auto err = _array_reader.reserve(size)) {
+          return err;
+        }
       }
-    }
-    yyjson_val* val;
-    yyjson_arr_iter iter;
-    yyjson_arr_iter_init(_arr.val_, &iter);
-    while ((val = yyjson_arr_iter_next(&iter))) {
-      auto err = _array_reader.read(InputVarType(val));
-      if (err) {
-        return err;
+      yyjson_val* val;
+      yyjson_arr_iter iter;
+      yyjson_arr_iter_init(_arr.val_, &iter);
+      while ((val = yyjson_arr_iter_next(&iter))) {
+        auto err = _array_reader.read(InputVarType(val));
+        if (err) {
+          return err;
+        }
       }
+      return std::nullopt;
     }
-    return std::nullopt;
   }
 
-  /// Reads all key-value pairs from a JSON object using a provided object reader.
-  /// The object reader's read() method is called for each key-value pair.
-  /// @tparam ObjectReader Type that provides a read() method for processing key-value pairs
+  /// Reads all key-value pairs from a JSON object using a provided object
+  /// reader. The object reader's read() method is called for each key-value
+  /// pair.
+  /// @tparam ObjectReader Type that provides a read() method for processing
+  /// key-value pairs
   /// @param _object_reader The reader object used to process each field
   /// @param _obj The JSON object to read from
   /// @return std::nullopt on success, or an Error if reading fails
@@ -141,10 +155,12 @@ struct Reader {
   }
 
   /// Converts a JSON value to a basic C++ type.
-  /// Supports strings, booleans, floating-point numbers, and integers (signed/unsigned).
+  /// Supports strings, booleans, floating-point numbers, and integers
+  /// (signed/unsigned).
   /// @tparam T The target C++ type
   /// @param _var The JSON value to convert
-  /// @return Result containing the converted value, or an error if conversion fails
+  /// @return Result containing the converted value, or an error if conversion
+  /// fails
   template <class T>
   rfl::Result<T> to_basic_type(const InputVarType _var) const noexcept {
     if constexpr (std::is_same<std::remove_cvref_t<T>, std::string>()) {
@@ -179,7 +195,8 @@ struct Reader {
         return error("Could not cast to uint.");
       }
       const auto value = yyjson_get_uint(_var.val_);
-      if (value > static_cast<uint64_t>(std::numeric_limits<std::remove_cvref_t<T>>::max())) {
+      if (value > static_cast<uint64_t>(
+                      std::numeric_limits<std::remove_cvref_t<T>>::max())) {
         return error("Integer is out of range for the target type.");
       }
       return static_cast<T>(value);
@@ -212,7 +229,8 @@ struct Reader {
 
   /// Converts a JSON value to an object.
   /// @param _var The JSON value to convert
-  /// @return Result containing the object, or an error if value is not an object
+  /// @return Result containing the object, or an error if value is not an
+  /// object
   rfl::Result<InputObjectType> to_object(
       const InputVarType _var) const noexcept {
     if (!yyjson_is_obj(_var.val_)) {
@@ -222,10 +240,12 @@ struct Reader {
   }
 
   /// Uses a type's custom constructor to deserialize from JSON.
-  /// Calls the type's static from_json_obj() method for custom deserialization logic.
+  /// Calls the type's static from_json_obj() method for custom deserialization
+  /// logic.
   /// @tparam T The type to construct, must have a from_json_obj() static method
   /// @param _var The JSON value to deserialize from
-  /// @return Result containing the constructed object, or an error if construction fails
+  /// @return Result containing the constructed object, or an error if
+  /// construction fails
   template <class T>
   rfl::Result<T> use_custom_constructor(
       const InputVarType _var) const noexcept {

@@ -19,6 +19,7 @@
 #include "schemaful/IsSchemafulWriter.hpp"
 #include "schemaful/tuple_to_named_tuple.hpp"
 #include "schemaful/tuple_to_named_tuple_t.hpp"
+#include "supports_read_all.hpp"
 
 namespace rfl::parsing {
 
@@ -58,6 +59,9 @@ struct TupleParser {
         const auto tuple_reader =
             TupleReader<R, W, TupleType, _ignore_empty_containers,
                         _all_required, ProcessorsType>(&_r, ptr);
+        static_assert(
+            supports_read_all<std::remove_cvref_t<decltype(tuple_reader)>>,
+            "Reader must support read_all()");
         auto err = _r.read_array(tuple_reader, _arr);
         if (err) {
           call_destructors_on_tuple_where_necessary(tuple_reader.num_set(),
