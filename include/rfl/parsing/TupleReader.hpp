@@ -62,8 +62,18 @@ class TupleReader {
    * @return An optional error.
    */
   std::optional<Error> read(const InputVarType& _var) const {
+    if (num_set_ == size_) {
+      std::stringstream stream;
+      stream << "Expected " << size_ << " fields, but got at least one more.";
+      return Error(stream.str());
+    }
     std::optional<Error> err;
-    read_impl(_var, &err);
+    [&]<size_t... _i>(std::integer_sequence<size_t, _i...>) {
+      (read_impl<_i>(_var, &err), ...);
+      if (!err) {
+        ++num_set_;
+      }
+    }(std::make_integer_sequence<size_t, size_>());
     return err;
   }
 
@@ -106,30 +116,20 @@ class TupleReader {
     }
   }
 
-  template <size_t _i = 0>
+  template <size_t _i>
   void read_impl(const InputVarType& _var, std::optional<Error>* _err) const {
     if constexpr (_i < size_) {
-      if (num_set_ == _i) {
-        using CurrentType =
-            std::remove_cvref_t<rfl::tuple_element_t<_i, TupleType>>;
+      using CurrentType =
+          std::remove_cvref_t<rfl::tuple_element_t<_i, TupleType>>;
 
-        auto res = Parser<R, W, CurrentType, ProcessorsType>::read(*r_, _var);
+      auto res = Parser<R, W, CurrentType, ProcessorsType>::read(*r_, _var);
 
-        if (res) {
-          move_to(&(rfl::get<_i>(*tuple_)), &(*res));
-          ++num_set_;
-        } else {
-          *_err =
-              wrap_error("Failed to parse field " + std::to_string(_i) + ": ",
-                         _i, std::move(res).error());
-        }
-        return;
+      if (res) {
+        move_to(&(rfl::get<_i>(*tuple_)), &(*res));
+      } else {
+        *_err = wrap_error("Failed to parse field " + std::to_string(_i) + ": ",
+                           _i, std::move(res).error());
       }
-      read_impl<_i + 1>(_var, _err);
-    } else {
-      std::stringstream stream;
-      stream << "Expected " << size_ << " fields, but got at least one more.";
-      *_err = Error(stream.str());
       return;
     }
   }
