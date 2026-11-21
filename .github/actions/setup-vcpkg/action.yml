@@ -52,11 +52,10 @@ runs:
       run: |
         $target = Join-Path $env:GITHUB_WORKSPACE ".pinnedcmake"
         python -m pip install "cmake==3.26.4" --target "$target"
-        $binDir = Get-ChildItem -Recurse "$target" -Directory -Filter "bin" |
-          Where-Object { $_.FullName -like "*cmake-3.26.4*" } |
+        $cmakeExe = Get-ChildItem -Recurse "$target" -Filter "cmake.exe" -ErrorAction SilentlyContinue |
           Select-Object -First 1
-        if (-NOT $binDir) { throw "CMake 3.26.4 binary not found under $target" }
-        $binPath = $binDir.FullName
+        if (-NOT $cmakeExe) { throw "cmake.exe not found under $target" }
+        $binPath = $cmakeExe.Directory.FullName
         $env:PATH = "$binPath;$env:PATH"
         Add-Content -FilePath $env:GITHUB_ENV -Value "$binPath;$env:PATH"
         cmake --version
