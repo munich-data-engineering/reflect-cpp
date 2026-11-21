@@ -42,3 +42,21 @@ runs:
         # vcpkg validates package ABIs when reusing an older dependency cache.
         restore-keys: |
           vcpkg-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache-key }}-${{ steps.config.outputs.image-version }}-
+
+    # Windows ships CMake 4.x (C:/Program Files/CMake), whose stricter source_group
+    # aborts Boost.Locale's configure step. Install a pinned CMake 3.x and prepend it
+    # to PATH so vcpkg (system CMake) and our own cmake calls use 3.x instead.
+    - name: Install pinned CMake 3.x on Windows
+      if: runner.os == 'Windows'
+      shell: powershell
+      run: |
+        $target = Join-Path $env:GITHUB_WORKSPACE ".pinnedcmake"
+        python -m pip install "cmake==3.26.4" --target "$target"
+        $binDir = Get-ChildItem -Recurse "$target" -Directory -Filter "bin" |
+          Where-Object { $_.FullName -like "*cmake-3.26.4*" } |
+          Select-Object -First 1
+        if (-NOT $binDir) { throw "CMake 3.26.4 binary not found under $target" }
+        $binPath = $binDir.FullName
+        $env:PATH = "$binPath;$env:PATH"
+        Add-Content -FilePath $env:GITHUB_ENV -Value "$binPath;$env:PATH"
+        cmake --version
