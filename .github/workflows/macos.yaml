@@ -29,10 +29,12 @@ jobs:
       - name: Install ninja
         run: brew install ninja
       - name: Install CMake 3.x (system CMake 4 breaks Boost.Locale's source_group)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned CMake into the Python environment
         run: |
-          brew install cmake@3.26
-          cmake_prefix="$(brew --prefix cmake@3.26)/bin"
-          echo "PATH=${cmake_prefix}:${PATH}" >> "$GITHUB_ENV"
+          python -m pip install "cmake==3.26.4"
           cmake --version
       - name: Compile
         env:
