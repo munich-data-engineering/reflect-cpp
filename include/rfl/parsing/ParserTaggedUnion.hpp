@@ -4,6 +4,7 @@
 #include <map>
 #include <sstream>
 #include <type_traits>
+#include <utility>
 
 #include "../Result.hpp"
 #include "../TaggedUnion.hpp"
@@ -128,8 +129,9 @@ struct ParserTaggedUnion<R, W, TaggedUnion<_discriminator, AlternativeTypes...>,
       return Parser<R, W, Variant<AlternativeTypes...>,
                     ProcessorsType>::to_schema(_definitions);
     } else {
-      using VariantType = std::variant<std::invoke_result_t<
-          decltype(wrap_if_necessary<AlternativeTypes>), AlternativeTypes>...>;
+      using VariantType = std::variant<decltype(
+          wrap_if_necessary<AlternativeTypes>(std::declval<AlternativeTypes>()))
+                                           ...>;
       return Parser<R, W, VariantType, ProcessorsType>::to_schema(_definitions);
     }
   }
@@ -191,8 +193,9 @@ struct ParserTaggedUnion<R, W, TaggedUnion<_discriminator, AlternativeTypes...>,
         return wrap_error(stream.str(), std::move(_e));
       };
 
-      using T = tagged_union_wrapper_no_ptr_t<std::invoke_result_t<
-          decltype(wrap_if_necessary<AlternativeType>), AlternativeType>>;
+      using T = tagged_union_wrapper_no_ptr_t<decltype(
+          wrap_if_necessary<AlternativeType>(std::declval<AlternativeType>()
+                                             ))>;
 
       *_result = Parser<R, W, T, ProcessorsType>::read(_r, _var)
                      .transform(get_fields)
