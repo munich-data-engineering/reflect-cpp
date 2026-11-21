@@ -69,13 +69,33 @@ class TupleReader {
     }
     std::optional<Error> err;
     [&]<size_t... _i>(std::integer_sequence<size_t, _i...>) {
-      (read_impl<_i>(_var, &err), ...);
+      (read_impl<_i, /*_check_num_set=*/true>(_var, &err), ...);
       if (!err) {
         ++num_set_;
       }
     }(std::make_integer_sequence<size_t, size_>());
     return err;
   }
+
+  /*template <class... Args>
+    requires((sizeof...(Args) == size_) && ... &&
+             std::is_same_v<Result<InputVarType>, Args>)
+  std::optional<Error> read_all(const Args&... _vars) const {
+    std::optional<Error> err;
+    [&]<size_t... _i>(std::integer_sequence<size_t, _i...>) {
+      (read_impl<_i>(_vars, &err), ...);
+      if (!err) {
+        ++num_set_;
+      }
+    }(std::make_integer_sequence<size_t, size_>());
+  }*/
+
+  /**
+   * @brief Returns the number of fields in the tuple.
+   *
+   * @return The number of fields.
+   */
+  static constexpr size_t size() { return size_; }
 
  private:
   template <int _i = 0>
@@ -116,22 +136,25 @@ class TupleReader {
     }
   }
 
-  template <size_t _i>
+  template <size_t _i, bool _check_num_set>
   void read_impl(const InputVarType& _var, std::optional<Error>* _err) const {
-    if constexpr (_i < size_) {
-      using CurrentType =
-          std::remove_cvref_t<rfl::tuple_element_t<_i, TupleType>>;
-
-      auto res = Parser<R, W, CurrentType, ProcessorsType>::read(*r_, _var);
-
-      if (res) {
-        move_to(&(rfl::get<_i>(*tuple_)), &(*res));
-      } else {
-        *_err = wrap_error("Failed to parse field " + std::to_string(_i) + ": ",
-                           _i, std::move(res).error());
+    if constexpr (_check_num_set) {
+      if (num_set_ != _i) {
+        return;
       }
-      return;
     }
+    using CurrentType =
+        std::remove_cvref_t<rfl::tuple_element_t<_i, TupleType>>;
+
+    auto res = Parser<R, W, CurrentType, ProcessorsType>::read(*r_, _var);
+
+    if (res) {
+      move_to(&(rfl::get<_i>(*tuple_)), &(*res));
+    } else {
+      *_err = wrap_error("Failed to parse field " + std::to_string(_i) + ": ",
+                         _i, std::move(res).error());
+    }
+    return;
   }
 
   template <class Target, class Source>
