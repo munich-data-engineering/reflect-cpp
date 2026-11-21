@@ -28,6 +28,12 @@ jobs:
         run: brew install bison openssl@3
       - name: Install ninja
         run: brew install ninja
+      - name: Install CMake 3.x (system CMake 4 breaks Boost.Locale's source_group)
+        run: |
+          brew install cmake@3.26
+          cmake_prefix="$(brew --prefix cmake@3.26)/bin"
+          echo "PATH=${cmake_prefix}:${PATH}" >> "$GITHUB_ENV"
+          cmake --version
       - name: Compile
         env:
           CC: clang
