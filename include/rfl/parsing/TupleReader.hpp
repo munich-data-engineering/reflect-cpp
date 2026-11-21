@@ -69,39 +69,26 @@ class TupleReader {
     }
     std::optional<Error> err;
     [&]<size_t... _i>(std::integer_sequence<size_t, _i...>) {
-      (read_impl<_i, /*_check_num_set=*/true>(_var, &err) || ...);
+      (read_impl<_i, /*_check_num_set=*/true>(_var, &err), ...);
+      if (!err) {
+        ++num_set_;
+      }
     }(std::make_integer_sequence<size_t, size_>());
     return err;
   }
 
-  /**
-   * @brief Reads all variables from the input.
-   *
-   * @param _vars The input variables to read from.
-   * @return An optional error.
-   */
-  template <class... Args>
-    requires(true && ... && std::is_same_v<Result<InputVarType>, Args>)
+  /*template <class... Args>
+    requires((sizeof...(Args) == size_) && ... &&
+             std::is_same_v<Result<InputVarType>, Args>)
   std::optional<Error> read_all(const Args&... _vars) const {
-    static_assert(sizeof...(Args) == size_,
-                  "The number of input variables must match the number of "
-                  "fields in the tuple.");
-    return [&]<size_t... _i>(
-               std::integer_sequence<size_t, _i...>) -> std::optional<Error> {
-      try {
-        std::optional<Error> err;
-        (_vars
-             .transform([&](auto&& _v) {
-               return read_impl<_i, /*_check_num_set=*/false>(_v, &err);
-             })
-             .value_or(false) &&
-         ...);
-        return err;
-      } catch (const std::exception& e) {
-        return Error{e.what()};
+    std::optional<Error> err;
+    [&]<size_t... _i>(std::integer_sequence<size_t, _i...>) {
+      (read_impl<_i>(_vars, &err), ...);
+      if (!err) {
+        ++num_set_;
       }
     }(std::make_integer_sequence<size_t, size_>());
-  }
+  }*/
 
   /**
    * @brief Returns the number of fields in the tuple.
@@ -150,14 +137,10 @@ class TupleReader {
   }
 
   template <size_t _i, bool _check_num_set>
-  bool read_impl(const InputVarType& _var, std::optional<Error>* _err) const {
+  void read_impl(const InputVarType& _var, std::optional<Error>* _err) const {
     if constexpr (_check_num_set) {
       if (num_set_ != _i) {
-        return false;
-      }
-    } else {
-      if (*_err) {
-        return false;
+        return;
       }
     }
     using CurrentType =
@@ -167,12 +150,11 @@ class TupleReader {
 
     if (res) {
       move_to(&(rfl::get<_i>(*tuple_)), &(*res));
-      ++num_set_;
     } else {
       *_err = wrap_error("Failed to parse field " + std::to_string(_i) + ": ",
                          _i, std::move(res).error());
     }
-    return true;
+    return;
   }
 
   template <class Target, class Source>
