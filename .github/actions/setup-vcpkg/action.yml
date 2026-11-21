@@ -50,12 +50,11 @@ runs:
       if: runner.os == 'Windows'
       shell: powershell
       run: |
-        $target = Join-Path $env:GITHUB_WORKSPACE ".pinnedcmake"
-        python -m pip install "cmake==3.26.4" --target "$target"
-        $cmakeExe = Get-ChildItem -Recurse "$target" -Filter "cmake.exe" -ErrorAction SilentlyContinue |
-          Select-Object -First 1
-        if (-NOT $cmakeExe) { throw "cmake.exe not found under $target" }
-        $binPath = $cmakeExe.Directory.FullName
-        $env:PATH = "$binPath;$env:PATH"
-        Add-Content -Path $env:GITHUB_ENV -Value "$binPath;$env:PATH"
+        # Install without --target: the wheel's cmake.exe is a Python launcher that
+        # imports the cmake package, so it only works once both are importable.
+        python -m pip install "cmake==3.26.4"
+        $scripts = & python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
+        if (-NOT $scripts) { throw "could not locate CMake scripts directory" }
+        $env:PATH = "$scripts;$env:PATH"
+        Add-Content -Path $env:GITHUB_ENV -Value "PATH=$scripts;$env:PATH"
         cmake --version
