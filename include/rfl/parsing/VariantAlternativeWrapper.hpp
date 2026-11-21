@@ -2,6 +2,7 @@
 #define RFL_PARSING_VARIANTALTERNATIVEWRAPPER_HPP_
 
 #include <type_traits>
+#include <utility>
 
 #include "../Field.hpp"
 #include "../Literal.hpp"
@@ -44,8 +45,8 @@ consteval auto make_tag() {
 }
 
 template <class T, bool _remove_namespaces = true>
-using tag_t = std::invoke_result_t<
-    decltype(make_tag<std::remove_cvref_t<std::remove_pointer_t<T>>, _remove_namespaces>)>;
+using tag_t = decltype(make_tag<std::remove_cvref_t<std::remove_pointer_t<T>>,
+                                _remove_namespaces>());
 
 }  // namespace vaw
 

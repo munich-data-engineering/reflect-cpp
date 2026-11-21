@@ -6,6 +6,7 @@
 #include <new>
 #include <stdexcept>
 #include <type_traits>
+#include <utility>
 
 #include "../Error.hpp"
 #include "../always_inline.hpp"
@@ -334,7 +335,7 @@ class Result {
   template <class F>
   RFL_ALWAYS_INLINE auto transform(const F& _f) && {
     /// Result_U is expected to be of type Result<U>.
-    using U = std::invoke_result_t<F, T>;
+    using U = decltype(std::declval<F>()(std::declval<T>()));
     if (success_) {
       return Result<U>(_f(std::move(*this).get_t()));
     } else {
@@ -549,9 +550,10 @@ class Result {
    * original value.
    */
   template <class F>
-  Result<T> transform_error(F&& f) && {
-    static_assert(std::is_same<std::invoke_result_t<F, Error>, Error>(),
-                  "A function passed to transform_error must return an error.");
+   Result<T> transform_error(F&& f) && {
+     static_assert(
+         std::is_same<decltype(std::declval<F>()(std::declval<Error>())), Error>(),
+         "A function passed to transform_error must return an error.");
     if (!has_value()) {
       return Result<T>{std::invoke(f, std::move(*this).get_err())};
     } else {
@@ -577,9 +579,10 @@ class Result {
    * original value.
    */
   template <class F>
-  Result<T> transform_error(F&& f) const& {
-    static_assert(std::is_same<std::invoke_result_t<F, Error>, Error>(),
-                  "A function passed to transform_error must return an error.");
+   Result<T> transform_error(F&& f) const& {
+     static_assert(
+         std::is_same<decltype(std::declval<F>()(std::declval<Error>())), Error>(),
+         "A function passed to transform_error must return an error.");
     if (!has_value()) {
       return Result<T>{std::invoke(f, get_err())};
     } else {

@@ -1,6 +1,8 @@
 #ifndef RFL_INTERNAL_NTH_ELEMENT_T_HPP_
 #define RFL_INTERNAL_NTH_ELEMENT_T_HPP_
 
+#include <utility>
+
 #include "nth_element.hpp"
 
 namespace rfl::internal {
@@ -19,8 +21,8 @@ struct TypeWrapper {
 
 template <int N, class... Ts>
 using nth_element_t =
-    typename std::invoke_result_t<decltype(nth_element<N, TypeWrapper<Ts>...>),
-                                  TypeWrapper<Ts>...>::Type;
+    decltype(nth_element<N, TypeWrapper<Ts>...>(
+                 std::declval<TypeWrapper<Ts>>()...))::Type;
 
 #endif
 
