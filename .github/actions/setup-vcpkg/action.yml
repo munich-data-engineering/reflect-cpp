@@ -57,5 +57,5 @@ runs:
         if (-NOT $cmakeExe) { throw "cmake.exe not found under $target" }
         $binPath = $cmakeExe.Directory.FullName
         $env:PATH = "$binPath;$env:PATH"
-        Add-Content -FilePath $env:GITHUB_ENV -Value "$binPath;$env:PATH"
+        Add-Content -Path $env:GITHUB_ENV -Value "$binPath;$env:PATH"
         cmake --version
