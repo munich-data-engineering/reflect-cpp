@@ -43,7 +43,9 @@ class TupleReader {
   std::optional<Error> handle_missing_fields() const {
     std::optional<Error> err;
     if (num_set_ < size_) {
-      handle_missing_fields_impl(&err);
+      [&]<size_t... _is>(std::integer_sequence<size_t, _is...>) {
+        (handle_missing_fields_impl<_is>(&err), ...);
+      }(std::make_integer_sequence<size_t, size_>());
     }
     return err;
   }
@@ -68,27 +70,14 @@ class TupleReader {
       return Error(stream.str());
     }
     std::optional<Error> err;
-    [&]<size_t... _i>(std::integer_sequence<size_t, _i...>) {
-      (read_impl<_i, /*_check_num_set=*/true>(_var, &err), ...);
+    [&]<size_t... _is>(std::integer_sequence<size_t, _is...>) {
+      (read_impl<_is>(_var, &err), ...);
       if (!err) {
         ++num_set_;
       }
     }(std::make_integer_sequence<size_t, size_>());
     return err;
   }
-
-  /*template <class... Args>
-    requires((sizeof...(Args) == size_) && ... &&
-             std::is_same_v<Result<InputVarType>, Args>)
-  std::optional<Error> read_all(const Args&... _vars) const {
-    std::optional<Error> err;
-    [&]<size_t... _i>(std::integer_sequence<size_t, _i...>) {
-      (read_impl<_i>(_vars, &err), ...);
-      if (!err) {
-        ++num_set_;
-      }
-    }(std::make_integer_sequence<size_t, size_>());
-  }*/
 
   /**
    * @brief Returns the number of fields in the tuple.
@@ -100,48 +89,43 @@ class TupleReader {
  private:
   template <int _i = 0>
   void handle_missing_fields_impl(std::optional<Error>* _err) const noexcept {
-    if constexpr (_i < size_) {
-      if (num_set_ == _i) {
-        using CurrentType =
-            std::remove_cvref_t<rfl::tuple_element_t<_i, TupleType>>;
+    if (num_set_ == _i) {
+      using CurrentType =
+          std::remove_cvref_t<rfl::tuple_element_t<_i, TupleType>>;
 
-        if constexpr (_all_required ||
-                      is_required<CurrentType, _ignore_empty_containers>()) {
-          *_err = make_nested_error(
-              static_cast<size_t>(_i),
-              "Field " + std::to_string(_i) + " was required, but missing.");
-          return;
-        } else if constexpr (std::is_nothrow_default_constructible_v<
-                                 CurrentType>) {
+      if constexpr (_all_required ||
+                    is_required<CurrentType, _ignore_empty_containers>()) {
+        *_err = make_nested_error(
+            static_cast<size_t>(_i),
+            "Field " + std::to_string(_i) + " was required, but missing.");
+        return;
+      } else if constexpr (std::is_nothrow_default_constructible_v<
+                               CurrentType>) {
+        ::new (&(rfl::get<_i>(*tuple_))) CurrentType();
+        ++num_set_;
+      } else {
+        // The default value can throw, for instance a Validator whose
+        // default value is invalid.
+        try {
           ::new (&(rfl::get<_i>(*tuple_))) CurrentType();
           ++num_set_;
-        } else {
-          // The default value can throw, for instance a Validator whose
-          // default value is invalid.
-          try {
-            ::new (&(rfl::get<_i>(*tuple_))) CurrentType();
-            ++num_set_;
-          } catch (std::exception& e) {
-            *_err = make_nested_error(
-                static_cast<size_t>(_i),
-                "Field " + std::to_string(_i) +
-                    " was missing, and its default value could not be "
-                    "constructed: " +
-                    e.what());
-            return;
-          }
+        } catch (std::exception& e) {
+          *_err = make_nested_error(
+              static_cast<size_t>(_i),
+              "Field " + std::to_string(_i) +
+                  " was missing, and its default value could not be "
+                  "constructed: " +
+                  e.what());
+          return;
         }
       }
-      handle_missing_fields_impl<_i + 1>(_err);
     }
   }
 
-  template <size_t _i, bool _check_num_set>
+  template <size_t _i>
   void read_impl(const InputVarType& _var, std::optional<Error>* _err) const {
-    if constexpr (_check_num_set) {
-      if (num_set_ != _i) {
-        return;
-      }
+    if (num_set_ != _i) {
+      return;
     }
     using CurrentType =
         std::remove_cvref_t<rfl::tuple_element_t<_i, TupleType>>;
