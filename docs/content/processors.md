@@ -310,9 +310,12 @@ have gotten had you read the following JSON string:
 Because you have not passed a default value to town, the default value
 of the type is used instead.
 
-Note that the struct is default-constructed before it is read. Every field
-therefore needs a valid default value, even if the field is in the input.
-This is explained in the documentation on `rfl::DefaultVal`.
+Note that the struct is default-constructed before it is read. A field
+whose default value is invalid, such as a validator that the default value
+of its type does not satisfy, can be read, but it must not be missing: you
+get the error `Field named '...' not found, and its default value is
+invalid: ...`. The documentation on `rfl::DefaultVal` explains this and the
+cases in which such a struct cannot be read at all.
 
 ### `rfl::DurationsAsCount`
 
