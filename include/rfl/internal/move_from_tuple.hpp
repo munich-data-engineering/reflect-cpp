@@ -12,22 +12,22 @@
 #include "tup_to_ptr_tuple.hpp"
 #include "tuple_t.hpp"
 
-namespace rfl {
-namespace internal {
+namespace rfl::internal {
 
-template <class Tuple, int _i = 0>
+template <class Tuple>
 constexpr int calc_flattened_size() {
-  if constexpr (_i == rfl::tuple_size_v<Tuple>) {
-    return 0;
-  } else {
+  constexpr auto calc_one =
+      []<size_t _i>(std::integral_constant<size_t, _i>) -> int {
     using T = std::remove_pointer_t<tuple_element_t<_i, Tuple>>;
     if constexpr (is_flatten_field_v<T>) {
-      return calc_flattened_size<ptr_tuple_t<typename T::Type>>() +
-             calc_flattened_size<Tuple, _i + 1>();
+      return calc_flattened_size<ptr_tuple_t<typename T::Type>>();
     } else {
-      return 1 + calc_flattened_size<Tuple, _i + 1>();
+      return 1;
     }
-  }
+  };
+  return [&]<auto... _is>(std::integer_sequence<size_t, _is...>) {
+    return (calc_one(std::integral_constant<size_t, _is>{}) + ...);
+  }(std::make_integer_sequence<size_t, rfl::tuple_size_v<Tuple>>());
 }
 
 // TODO: Non-recursive implementation
@@ -61,28 +61,27 @@ auto unflatten_ptr_tuple(PtrTupleType& _t, Args... _args) {
   }
 }
 
-template <class T, class Pointers, class... Args>
-auto move_from_pointers(Pointers& _ptrs, Args&&... _args) {
-  constexpr auto i = sizeof...(Args);
-  if constexpr (i == rfl::tuple_size_v<std::remove_cvref_t<Pointers>>) {
-    return std::remove_cvref_t<T>{std::move(_args)...};
-  } else {
-    using FieldType = tuple_element_t<i, std::remove_cvref_t<Pointers>>;
+template <class T, class Pointers>
+auto move_from_pointers(Pointers& _ptrs) {
+  const auto move_one = [&]<size_t _i>(std::integral_constant<size_t, _i>) {
+    using FieldType = tuple_element_t<_i, std::remove_cvref_t<Pointers>>;
 
     if constexpr (std::is_pointer_v<FieldType>) {
-      return move_from_pointers<T>(_ptrs, std::move(_args)...,
-                                   std::move(*std::get<i>(_ptrs)));
+      return std::move(*std::get<_i>(_ptrs));
 
     } else {
       using PtrTupleType = ptr_tuple_t<std::remove_cvref_t<T>>;
 
       using U = std::remove_cvref_t<typename std::remove_pointer_t<
-          tuple_element_t<i, PtrTupleType>>::Type>;
+          tuple_element_t<_i, PtrTupleType>>::Type>;
 
-      return move_from_pointers<T>(_ptrs, std::move(_args)...,
-                                   move_from_pointers<U>(std::get<i>(_ptrs)));
+      return move_from_pointers<U>(std::get<_i>(_ptrs));
     }
-  }
+  };
+  return [&]<auto... _is>(std::integer_sequence<size_t, _is...>) {
+    return std::remove_cvref_t<T>{
+        move_one(std::integral_constant<size_t, _is>{})...};
+  }(std::make_integer_sequence<size_t, rfl::tuple_size_v<Pointers>>());
 }
 
 template <class T>
@@ -92,10 +91,8 @@ auto flatten_array(T* _v) {
 
 template <class T, std::size_t _n>
 auto flatten_array(std::array<T, _n>* _arr) {
-  const auto fct = [](auto&... _v) {
-    return rfl::tuple_cat(flatten_array(&_v)...);
-  };
-  return std::apply(fct, *_arr);
+  return std::apply(
+      [](auto&... _v) { return rfl::tuple_cat(flatten_array(&_v)...); }, *_arr);
 }
 
 template <class T>
@@ -109,10 +106,9 @@ auto make_tuple_from_element(Array<T>* _arr) {
 }
 
 auto flatten_c_arrays(const auto& _tup) {
-  const auto fct = [](auto... _v) {
-    return rfl::tuple_cat(make_tuple_from_element(_v)...);
-  };
-  return rfl::apply(fct, _tup);
+  return rfl::apply(
+      [](auto... _v) { return rfl::tuple_cat(make_tuple_from_element(_v)...); },
+      _tup);
 }
 
 /// Creates a struct of type T from a tuple by moving the underlying
@@ -129,7 +125,6 @@ auto move_from_tuple(TupleType&& _t) {
   return move_from_pointers<T>(pointers);
 }
 
-}  // namespace internal
-}  // namespace rfl
+}  // namespace rfl::internal
 
 #endif
