@@ -28,11 +28,9 @@ runs:
         echo "image-version=${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
 
     # Windows ships CMake 4.x (C:/Program Files/CMake), whose stricter source_group
-    # aborts Boost.Locale's configure step. Install a pinned CMake 3.x and prepend it
-    # to PATH so vcpkg (system CMake) and our own cmake calls use 3.x instead.
-    # This MUST run before run-vcpkg: run-vcpkg performs the vcpkg install (and thus
-    # Boost.Locale's CMake configure) during action setup, so the PATH prepend has to
-    # be in place before that step sees it.
+    # aborts Boost.Locale's configure step. run-vcpkg always invokes CMake at that
+    # fixed path and ignores the PATH, so the only reliable fix is to overwrite the
+    # system cmake.exe with the pinned 3.x (the same effect the pip fix achieves on macOS).
     - name: Install pinned CMake 3.x on Windows
       if: runner.os == 'Windows'
       shell: powershell
@@ -40,10 +38,13 @@ runs:
         # Install without --target: the wheel's cmake.exe is a Python launcher that
         # imports the cmake package, so it only works once both are importable.
         python -m pip install "cmake==3.26.4"
-        $scripts = & python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
-        if (-NOT $scripts) { throw "could not locate CMake scripts directory" }
-        $env:PATH = "$scripts;$env:PATH"
-        Add-Content -Path $env:GITHUB_ENV -Value "PATH=$scripts;$env:PATH"
+        $packages = & python -c "import sysconfig; print(sysconfig.get_path('packages'))"
+        # Locate the real cmake.exe inside the wheel (the launcher lives in Scripts/,
+        # outside site-packages, so restrict the search to the package itself).
+        $real = Get-ChildItem -Path (Join-Path $packages 'cmake') -Filter cmake.exe -Recurse |
+                Select-Object -First 1
+        if (-NOT $real) { throw "could not locate cmake.exe in the pip package" }
+        Copy-Item $real.FullName "C:\Program Files\CMake\bin\cmake.exe" -Force
         cmake --version
 
     # run-vcpkg requires binaryCachePath to exist before the action starts.
