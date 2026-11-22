@@ -8,6 +8,7 @@
 
 #include "../Result.hpp"
 #include "../Tuple.hpp"
+#include "../internal/always_inline.hpp"
 #include "../internal/is_array.hpp"
 #include "AreReaderAndWriter.hpp"
 #include "Parser_base.hpp"
@@ -87,7 +88,7 @@ class TupleReader {
   static constexpr size_t size() { return size_; }
 
  private:
-  template <int _i = 0>
+  template <int _i>
   void handle_missing_fields_impl(std::optional<Error>* _err) const noexcept {
     if (num_set_ == _i) {
       using CurrentType =
