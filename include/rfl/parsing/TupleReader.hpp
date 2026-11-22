@@ -33,8 +33,6 @@ class TupleReader {
   TupleReader(const R* _r, TupleType* _tuple)
       : num_set_(0), r_(_r), tuple_(_tuple) {}
 
-  ~TupleReader() = default;
-
   /**
    * @brief Handles any fields that were missing from the input.
    *
