@@ -5,23 +5,29 @@
 
 namespace rfl::internal {
 
-template <int _i, class T>
-consteval int find_element_index() {
-  return -1;
-}
+template <class T1, class T2, int _i>
+struct ElementIndexWrapper {
+  static constexpr int index = _i;
 
-template <int _i, class T, class Head, class... Tail>
-consteval int find_element_index() {
-  if constexpr (std::is_same_v<T, Head>) {
-    return _i;
-  } else {
-    return find_element_index<_i + 1, T, Tail...>();
+  consteval auto operator||(auto other) const {
+    if constexpr (std::is_same_v<T1, T2>) {
+      return *this;
+    } else {
+      return other;
+    }
   }
-}
+};
 
 template <class T, class... AlternativeTypes>
 consteval int element_index() {
-  return find_element_index<0, T, AlternativeTypes...>();
+  return []<auto... _is>(std::integer_sequence<size_t, _is...>) {
+    return ((ElementIndexWrapper<std::remove_cvref_t<T>,
+                                 std::remove_cvref_t<AlternativeTypes>,
+                                 _is>{} ||
+             ...) ||
+            ElementIndexWrapper<T, T, -1>{})
+        .index;
+  }(std::make_integer_sequence<size_t, sizeof...(AlternativeTypes)>());
 }
 
 }  // namespace rfl::internal
