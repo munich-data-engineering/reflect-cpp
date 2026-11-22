@@ -38,7 +38,7 @@ runs:
         # Install without --target: the wheel's cmake.exe is a Python launcher that
         # imports the cmake package, so it only works once both are importable.
         python -m pip install "cmake==3.26.4"
-        $packages = & python -c "import sysconfig; print(sysconfig.get_path('packages'))"
+        $packages = & python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])"
         # Locate the real cmake.exe inside the wheel (the launcher lives in Scripts/,
         # outside site-packages, so restrict the search to the package itself).
         $real = Get-ChildItem -Path (Join-Path $packages 'cmake') -Filter cmake.exe -Recurse |
