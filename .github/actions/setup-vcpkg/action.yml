@@ -27,6 +27,25 @@ runs:
         echo "vcpkg-revision=$(git rev-parse HEAD:vcpkg)" >> "$GITHUB_OUTPUT"
         echo "image-version=${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
 
+    # Windows ships CMake 4.x (C:/Program Files/CMake), whose stricter source_group
+    # aborts Boost.Locale's configure step. Install a pinned CMake 3.x and prepend it
+    # to PATH so vcpkg (system CMake) and our own cmake calls use 3.x instead.
+    # This MUST run before run-vcpkg: run-vcpkg performs the vcpkg install (and thus
+    # Boost.Locale's CMake configure) during action setup, so the PATH prepend has to
+    # be in place before that step sees it.
+    - name: Install pinned CMake 3.x on Windows
+      if: runner.os == 'Windows'
+      shell: powershell
+      run: |
+        # Install without --target: the wheel's cmake.exe is a Python launcher that
+        # imports the cmake package, so it only works once both are importable.
+        python -m pip install "cmake==3.26.4"
+        $scripts = & python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
+        if (-NOT $scripts) { throw "could not locate CMake scripts directory" }
+        $env:PATH = "$scripts;$env:PATH"
+        Add-Content -Path $env:GITHUB_ENV -Value "PATH=$scripts;$env:PATH"
+        cmake --version
+
     # run-vcpkg requires binaryCachePath to exist before the action starts.
     - uses: lukka/run-vcpkg@v11
       with:
@@ -42,19 +61,3 @@ runs:
         # vcpkg validates package ABIs when reusing an older dependency cache.
         restore-keys: |
           vcpkg-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache-key }}-${{ steps.config.outputs.image-version }}-
-
-    # Windows ships CMake 4.x (C:/Program Files/CMake), whose stricter source_group
-    # aborts Boost.Locale's configure step. Install a pinned CMake 3.x and prepend it
-    # to PATH so vcpkg (system CMake) and our own cmake calls use 3.x instead.
-    - name: Install pinned CMake 3.x on Windows
-      if: runner.os == 'Windows'
-      shell: powershell
-      run: |
-        # Install without --target: the wheel's cmake.exe is a Python launcher that
-        # imports the cmake package, so it only works once both are importable.
-        python -m pip install "cmake==3.26.4"
-        $scripts = & python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
-        if (-NOT $scripts) { throw "could not locate CMake scripts directory" }
-        $env:PATH = "$scripts;$env:PATH"
-        Add-Content -Path $env:GITHUB_ENV -Value "PATH=$scripts;$env:PATH"
-        cmake --version
