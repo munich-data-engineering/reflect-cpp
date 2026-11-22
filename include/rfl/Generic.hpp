@@ -6,6 +6,7 @@
 #include <type_traits>
 #include <variant>
 #include <vector>
+#include <cstdint>
 
 #include "Object.hpp"
 #include "Result.hpp"
