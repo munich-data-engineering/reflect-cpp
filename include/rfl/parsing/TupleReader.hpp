@@ -71,7 +71,7 @@ class TupleReader {
     }
     std::optional<Error> err;
     [&]<size_t... _is>(std::integer_sequence<size_t, _is...>) {
-      (read_impl<_is>(_var, &err), ...);
+      (read_impl<_is>(*this, _var, &err), ...);
       if (!err) {
         ++num_set_;
       }
@@ -123,17 +123,19 @@ class TupleReader {
   }
 
   template <size_t _i>
-  void read_impl(const InputVarType& _var, std::optional<Error>* _err) const {
-    if (num_set_ != _i) {
+  static void read_impl(const TupleReader& _tuple_reader,
+                        const InputVarType& _var, std::optional<Error>* _err) {
+    if (_tuple_reader.num_set_ != _i) {
       return;
     }
     using CurrentType =
         std::remove_cvref_t<rfl::tuple_element_t<_i, TupleType>>;
 
-    auto res = Parser<R, W, CurrentType, ProcessorsType>::read(*r_, _var);
+    auto res = Parser<R, W, CurrentType, ProcessorsType>::read(
+        *_tuple_reader.r_, _var);
 
     if (res) {
-      move_to(&(rfl::get<_i>(*tuple_)), &(*res));
+      move_to(&(rfl::get<_i>(*_tuple_reader.tuple_)), &(*res));
     } else {
       *_err = wrap_error("Failed to parse field " + std::to_string(_i) + ": ",
                          _i, std::move(res).error());
@@ -142,7 +144,7 @@ class TupleReader {
   }
 
   template <class Target, class Source>
-  void move_to(Target* _t, Source* _s) const {
+  static void move_to(Target* _t, Source* _s) {
     if constexpr (std::is_const_v<Target>) {
       return move_to(const_cast<std::remove_const_t<Target>*>(_t), _s);
     } else if constexpr (!internal::is_array_v<Source> &&
