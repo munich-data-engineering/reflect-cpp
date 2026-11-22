@@ -84,15 +84,13 @@ class ViewReader {
 
  private:
   template <int i, class FieldType>
-  static bool is_matching(const auto _current_name_or_index,
-                          size_t _current_hash) {
-    if constexpr (std::is_integral_v<
-                      std::remove_cvref_t<decltype(_current_name_or_index)>>) {
-      return _current_name_or_index == i;
-    } else {
-      return fnv1a(FieldType::name_.string_view()) == _current_hash &&
-             _current_name_or_index == FieldType::name();
-    }
+  static bool is_matching(const int _current_index) {
+    return _current_index == i;
+  }
+
+  template <int i, class FieldType>
+  static bool is_matching(const std::string_view& _current_name) {
+    return _current_name == FieldType::name();
   }
 
   static ErrorDetail::PathSegment to_path_segment(const int _current_index) {
@@ -104,28 +102,17 @@ class ViewReader {
     return std::string(_current_name);
   }
 
-  constexpr static size_t fnv1a(std::string_view _sv) noexcept {
-    constexpr size_t fnv_offset_basis = 1469598103934665603ULL;
-    constexpr size_t fnv_prime = 1099511628211ULL;
-    size_t h = fnv_offset_basis;
-    for (size_t i = 0; i < _sv.size(); ++i) {
-      h ^= static_cast<size_t>(static_cast<unsigned char>(_sv[i]));
-      h *= fnv_prime;
-    }
-    return h;
-  }
-
   template <int i>
   static RFL_ALWAYS_INLINE void assign_if_field_matches(
       const R& _r, const auto _current_name_or_index, const auto& _var,
       auto* _view, auto* _errors, auto* _found, auto* _set,
-      bool* _already_assigned, size_t _current_hash) {
+      bool* _already_assigned) {
     using FieldType = tuple_element_t<i, typename ViewType::Fields>;
     using OriginalType = typename FieldType::Type;
     using T =
         std::remove_cvref_t<std::remove_pointer_t<typename FieldType::Type>>;
     if (!(*_already_assigned) && !std::get<i>(*_found) &&
-        is_matching<i, FieldType>(_current_name_or_index, _current_hash)) {
+        is_matching<i, FieldType>(_current_name_or_index)) {
       std::get<i>(*_found) = true;
       *_already_assigned = true;
       auto res = Parser<R, W, T, ProcessorsType>::read(_r, _var);
@@ -178,17 +165,9 @@ class ViewReader {
                                        std::integer_sequence<int, is...>) {
     bool already_assigned = false;
 
-    size_t current_hash = 0;
-    if constexpr (std::is_same_v<std::remove_cvref_t<
-                                   decltype(_current_name_or_index)>,
-                                  std::string_view>) {
-      current_hash = fnv1a(_current_name_or_index);
-    }
-
     (assign_if_field_matches<is>(_r, _current_name_or_index, _var, _view,
-                                  _errors, _found, _set, &already_assigned,
-                                  current_hash),
-      ...);
+                                 _errors, _found, _set, &already_assigned),
+     ...);
 
     if constexpr (ViewType::pos_extra_fields() != -1) {
       static_assert(!schemaful::IsSchemafulReader<R>,
