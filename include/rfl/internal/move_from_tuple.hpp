@@ -178,7 +178,7 @@ auto make_tuple_from_element(Array<T>* _arr) {
  * @param _tup Source tuple.
  * @return A flattened tuple.
  */
-auto flatten_c_arrays(const auto& _tup) {
+auto flatten_c_arrays(auto&& _tup) {
   return rfl::apply(
       [](auto... _v) { return rfl::tuple_cat(make_tuple_from_element(_v)...); },
       _tup);
@@ -191,27 +191,10 @@ auto flatten_c_arrays(const auto& _tup) {
  */
 template <class T, class TupleType>
 auto move_from_tuple(TupleType&& _t) {
-  auto ptr_tuple = tup_to_ptr_tuple(_t);
   using TargetTupleType = tuple_t<std::remove_cvref_t<T>>;
-
-  if constexpr (has_flatten_fields<TargetTupleType>()) {
-    if constexpr (has_arrays<TargetTupleType>()) {
-      return move_from_pointers<T>(flatten_c_arrays(
-          unflatten_ptr_tuple<TargetTupleType>(std::move(ptr_tuple))));
-    } else {
-      return move_from_pointers<T>(
-          unflatten_ptr_tuple<TargetTupleType>(std::move(ptr_tuple)));
-    }
-
-  } else {
-    if constexpr (has_arrays<TargetTupleType>()) {
-      return move_from_pointers<T>(flatten_c_arrays(std::move(ptr_tuple)));
-    } else {
-      // Simplest and most common case: Most structs contain neither flatten
-      // fields nor C-style arrays.
-      return move_from_pointers<T>(std::move(ptr_tuple));
-    }
-  }
+  auto ptr_tuple = tup_to_ptr_tuple(_t);
+  return move_from_pointers<T>(
+      flatten_c_arrays(unflatten_ptr_tuple<TargetTupleType>(ptr_tuple)));
 }
 
 }  // namespace rfl::internal

@@ -7,7 +7,7 @@
 #include "../Tuple.hpp"
 #include "is_array.hpp"
 
-namespace rfl ::internal {
+namespace rfl::internal {
 
 template <class TupleType>
 constexpr bool has_arrays() {
