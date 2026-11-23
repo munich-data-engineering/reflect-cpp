@@ -11,7 +11,7 @@
 
 namespace rfl::internal {
 
-template <class NamedTupleType, class... AlreadyExtracted>
+template <class NamedTupleType>
 auto get_meta_fields() {
   const auto get_one = [&]<size_t _i>(std::integral_constant<size_t, _i>) {
     using FieldType = tuple_element_t<_i, typename NamedTupleType::Fields>;
