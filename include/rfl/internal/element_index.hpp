@@ -2,6 +2,7 @@
 #define RFL_INTERNAL_ELEMENT_INDEX_HPP_
 
 #include <type_traits>
+#include <utility>
 
 namespace rfl::internal {
 
@@ -18,16 +19,20 @@ struct ElementIndexWrapper {
   }
 };
 
+/**
+ * Finds the index of the first type T in the list of AlternativeTypes.
+ * If T is not found, returns -1.
+ */
 template <class T, class... AlternativeTypes>
 consteval int element_index() {
-  return []<auto... _is>(std::integer_sequence<size_t, _is...>) {
+  return []<auto... _is>(std::integer_sequence<int, _is...>) {
     return ((ElementIndexWrapper<std::remove_cvref_t<T>,
                                  std::remove_cvref_t<AlternativeTypes>,
                                  _is>{} ||
              ...) ||
             ElementIndexWrapper<T, T, -1>{})
         .index;
-  }(std::make_integer_sequence<size_t, sizeof...(AlternativeTypes)>());
+  }(std::make_integer_sequence<int, sizeof...(AlternativeTypes)>());
 }
 
 }  // namespace rfl::internal
