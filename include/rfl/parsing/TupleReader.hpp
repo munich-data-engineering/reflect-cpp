@@ -8,6 +8,7 @@
 
 #include "../Result.hpp"
 #include "../Tuple.hpp"
+#include "../internal/always_inline.hpp"
 #include "../internal/is_array.hpp"
 #include "AreReaderAndWriter.hpp"
 #include "Parser_base.hpp"
@@ -41,7 +42,9 @@ class TupleReader {
   std::optional<Error> handle_missing_fields() const {
     std::optional<Error> err;
     if (num_set_ < size_) {
-      handle_missing_fields_impl(&err);
+      [&]<size_t... _is>(std::integer_sequence<size_t, _is...>) {
+        (handle_missing_fields_impl<_is>(&err), ...);
+      }(std::make_integer_sequence<size_t, size_>());
     }
     return err;
   }
@@ -60,80 +63,87 @@ class TupleReader {
    * @return An optional error.
    */
   std::optional<Error> read(const InputVarType& _var) const {
+    if (num_set_ == size_) {
+      std::stringstream stream;
+      stream << "Expected " << size_ << " fields, but got at least one more.";
+      return Error(stream.str());
+    }
     std::optional<Error> err;
-    read_impl(_var, &err);
+    [&]<size_t... _is>(std::integer_sequence<size_t, _is...>) {
+      (read_impl<_is>(*this, _var, &err), ...);
+      if (!err) {
+        ++num_set_;
+      }
+    }(std::make_integer_sequence<size_t, size_>());
     return err;
   }
 
- private:
-  template <int _i = 0>
-  void handle_missing_fields_impl(std::optional<Error>* _err) const noexcept {
-    if constexpr (_i < size_) {
-      if (num_set_ == _i) {
-        using CurrentType =
-            std::remove_cvref_t<rfl::tuple_element_t<_i, TupleType>>;
+  /**
+   * @brief Returns the number of fields in the tuple.
+   *
+   * @return The number of fields.
+   */
+  static constexpr size_t size() { return size_; }
 
-        if constexpr (_all_required ||
-                      is_required<CurrentType, _ignore_empty_containers>()) {
-          *_err = make_nested_error(
-              static_cast<size_t>(_i),
-              "Field " + std::to_string(_i) + " was required, but missing.");
-          return;
-        } else if constexpr (std::is_nothrow_default_constructible_v<
-                                 CurrentType>) {
+ private:
+  template <int _i>
+  void handle_missing_fields_impl(std::optional<Error>* _err) const noexcept {
+    if (num_set_ == _i) {
+      using CurrentType =
+          std::remove_cvref_t<rfl::tuple_element_t<_i, TupleType>>;
+
+      if constexpr (_all_required ||
+                    is_required<CurrentType, _ignore_empty_containers>()) {
+        *_err = make_nested_error(
+            static_cast<size_t>(_i),
+            "Field " + std::to_string(_i) + " was required, but missing.");
+        return;
+      } else if constexpr (std::is_nothrow_default_constructible_v<
+                               CurrentType>) {
+        ::new (&(rfl::get<_i>(*tuple_))) CurrentType();
+        ++num_set_;
+      } else {
+        // The default value can throw, for instance a Validator whose
+        // default value is invalid.
+        try {
           ::new (&(rfl::get<_i>(*tuple_))) CurrentType();
           ++num_set_;
-        } else {
-          // The default value can throw, for instance a Validator whose
-          // default value is invalid.
-          try {
-            ::new (&(rfl::get<_i>(*tuple_))) CurrentType();
-            ++num_set_;
-          } catch (std::exception& e) {
-            *_err = make_nested_error(
-                static_cast<size_t>(_i),
-                "Field " + std::to_string(_i) +
-                    " was missing, and its default value could not be "
-                    "constructed: " +
-                    e.what());
-            return;
-          }
+        } catch (std::exception& e) {
+          *_err = make_nested_error(
+              static_cast<size_t>(_i),
+              "Field " + std::to_string(_i) +
+                  " was missing, and its default value could not be "
+                  "constructed: " +
+                  e.what());
+          return;
         }
       }
-      handle_missing_fields_impl<_i + 1>(_err);
     }
   }
 
-  template <size_t _i = 0>
-  void read_impl(const InputVarType& _var, std::optional<Error>* _err) const {
-    if constexpr (_i < size_) {
-      if (num_set_ == _i) {
-        using CurrentType =
-            std::remove_cvref_t<rfl::tuple_element_t<_i, TupleType>>;
-
-        auto res = Parser<R, W, CurrentType, ProcessorsType>::read(*r_, _var);
-
-        if (res) {
-          move_to(&(rfl::get<_i>(*tuple_)), &(*res));
-          ++num_set_;
-        } else {
-          *_err =
-              wrap_error("Failed to parse field " + std::to_string(_i) + ": ",
-                         _i, std::move(res).error());
-        }
-        return;
-      }
-      read_impl<_i + 1>(_var, _err);
-    } else {
-      std::stringstream stream;
-      stream << "Expected " << size_ << " fields, but got at least one more.";
-      *_err = Error(stream.str());
+  template <size_t _i>
+  static void read_impl(const TupleReader& _tuple_reader,
+                        const InputVarType& _var, std::optional<Error>* _err) {
+    if (_tuple_reader.num_set_ != _i) {
       return;
     }
+    using CurrentType =
+        std::remove_cvref_t<rfl::tuple_element_t<_i, TupleType>>;
+
+    auto res = Parser<R, W, CurrentType, ProcessorsType>::read(
+        *_tuple_reader.r_, _var);
+
+    if (res) {
+      move_to(&(rfl::get<_i>(*_tuple_reader.tuple_)), &(*res));
+    } else {
+      *_err = wrap_error("Failed to parse field " + std::to_string(_i) + ": ",
+                         _i, std::move(res).error());
+    }
+    return;
   }
 
   template <class Target, class Source>
-  void move_to(Target* _t, Source* _s) const {
+  static void move_to(Target* _t, Source* _s) {
     if constexpr (std::is_const_v<Target>) {
       return move_to(const_cast<std::remove_const_t<Target>*>(_t), _s);
     } else if constexpr (!internal::is_array_v<Source> &&

@@ -7,8 +7,7 @@
 #include "../Tuple.hpp"
 #include "is_flatten_field.hpp"
 
-namespace rfl {
-namespace internal {
+namespace rfl ::internal {
 
 template <class TupleType>
 constexpr bool has_flatten_fields() {
@@ -21,11 +20,9 @@ constexpr bool has_flatten_fields() {
   return [&]<int... _is>(std::integer_sequence<int, _is...>) {
     return (false || ... ||
             is_true_for_one(std::integral_constant<int, _is>{}));
-  }
-  (std::make_integer_sequence<int, rfl::tuple_size_v<TupleType>>());
+  }(std::make_integer_sequence<int, rfl::tuple_size_v<TupleType>>());
 }
 
-}  // namespace internal
-}  // namespace rfl
+}  // namespace rfl::internal
 
 #endif

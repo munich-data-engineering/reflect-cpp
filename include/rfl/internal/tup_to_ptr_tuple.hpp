@@ -6,20 +6,16 @@
 #include "../apply.hpp"
 #include "../make_named_tuple.hpp"
 
-namespace rfl {
-namespace internal {
+namespace rfl::internal {
 
 /// Generates a named tuple that contains pointers to the original values in
 /// the struct from a tuple.
 template <class TupleType>
 auto tup_to_ptr_tuple(TupleType& _t) {
-  const auto to_ptr = [](auto&... _fields) {
-    return rfl::make_tuple(&_fields...);
-  };
-  return rfl::apply(to_ptr, _t);
+  return rfl::apply(
+      [](auto&... _fields) { return rfl::make_tuple(&_fields...); }, _t);
 }
 
-}  // namespace internal
-}  // namespace rfl
+}  // namespace rfl::internal
 
 #endif
