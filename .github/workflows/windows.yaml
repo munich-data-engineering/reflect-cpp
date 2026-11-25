@@ -104,4 +104,24 @@ jobs:
         run: |
           ctest --test-dir build -C Release --output-on-failure
 
+  windows-msvc-modules:
+    name: "windows-msvc modules"
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: lukka/run-vcpkg@v11
+      - name: Compile modules
+        shell: bash
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_CXX_STANDARD=23 \
+            -DREFLECTCPP_BUILD_MODULES=ON \
+            -DREFLECTCPP_BUILD_TESTS=ON \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release -j4
 
