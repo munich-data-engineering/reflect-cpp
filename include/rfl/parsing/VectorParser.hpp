@@ -13,6 +13,7 @@
 #include "MapParser.hpp"
 #include "Parent.hpp"
 #include "Parser_base.hpp"
+#include "StringMapKey.hpp"
 #include "VectorReader.hpp"
 #include "is_forward_list.hpp"
 #include "is_map_like.hpp"
@@ -128,7 +129,11 @@ struct VectorParser {
    */
   static constexpr bool treat_as_map() {
     if constexpr (is_map_like_not_multimap<VecType>()) {
-      if constexpr (internal::has_reflection_type_v<typename T::first_type>) {
+      using Key = std::remove_cvref_t<typename T::first_type>;
+      if constexpr (StringMapKey<Key, ProcessorsType>::enabled) {
+        return true;
+      } else if constexpr (internal::has_reflection_type_v<
+                               typename T::first_type>) {
         using U = std::remove_cvref_t<typename T::first_type::ReflectionType>;
         return std::is_same<U, std::string>() || std::is_integral_v<U> ||
                std::is_floating_point_v<U>;

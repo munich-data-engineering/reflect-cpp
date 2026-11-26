@@ -11,6 +11,7 @@
 #include "MapReader.hpp"
 #include "Parent.hpp"
 #include "Parser_base.hpp"
+#include "StringMapKey.hpp"
 #include "SupportsTypedMapReader.hpp"
 #include "SupportsTypedMapWriter.hpp"
 #include "TypedMapReader.hpp"
@@ -125,7 +126,12 @@ struct MapParser {
         auto entry = _w.map_entry(map);
         const auto parent = typename ParentType::template MapEntry<
             typename W::OutputMapEntryType>{&entry};
-        Parser<R, W, KeyType, ProcessorsType>::write(_w, key, parent);
+        if constexpr (StringMapKey<KeyType, ProcessorsType>::enabled) {
+          const auto name = StringMapKey<KeyType, ProcessorsType>::write(key);
+          Parser<R, W, std::string, ProcessorsType>::write(_w, name, parent);
+        } else {
+          Parser<R, W, KeyType, ProcessorsType>::write(_w, key, parent);
+        }
         Parser<R, W, ValueType, ProcessorsType>::write(_w, value, parent);
       }
     };
@@ -148,7 +154,11 @@ struct MapParser {
         typename ParentType::template Map<typename W::OutputMapType>;
 
     for (const auto& [k, v] : _m) {
-      if constexpr (internal::has_reflection_type_v<KeyType>) {
+      if constexpr (StringMapKey<KeyType, ProcessorsType>::enabled) {
+        const auto name = StringMapKey<KeyType, ProcessorsType>::write(k);
+        const auto new_parent = ParentMapType{name, &m};
+        Parser<R, W, ValueType, ProcessorsType>::write(_w, v, new_parent);
+      } else if constexpr (internal::has_reflection_type_v<KeyType>) {
         using ReflT = typename KeyType::ReflectionType;
 
         if constexpr (std::is_integral_v<ReflT> ||
@@ -183,7 +193,11 @@ struct MapParser {
   static void write_object(const W& _w, const MapType& _m, const P& _parent) {
     auto obj = ParentType::add_object(_w, _m.size(), _parent);
     for (const auto& [k, v] : _m) {
-      if constexpr (internal::has_reflection_type_v<KeyType>) {
+      if constexpr (StringMapKey<KeyType, ProcessorsType>::enabled) {
+        const auto name = StringMapKey<KeyType, ProcessorsType>::write(k);
+        const auto new_parent = typename ParentType::Object{name, &obj};
+        Parser<R, W, ValueType, ProcessorsType>::write(_w, v, new_parent);
+      } else if constexpr (internal::has_reflection_type_v<KeyType>) {
         using ReflT = typename KeyType::ReflectionType;
 
         if constexpr (std::is_integral_v<ReflT> ||
