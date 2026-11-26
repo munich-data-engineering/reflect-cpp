@@ -188,6 +188,9 @@ schema::Type type_to_capnproto_schema_type(
     if constexpr (std::is_same<T, Type::Boolean>()) {
       return schema::Type{.value = schema::Type::Bool{}};
 
+    } else if constexpr (std::is_same<T, Type::Null>()) {
+      return schema::Type{.value = schema::Type::Void{}};
+
     } else if constexpr (std::is_same<T, Type::Bytestring>() ||
                          std::is_same<T, Type::Vectorstring>()) {
       return schema::Type{.value = schema::Type::Data{}};
