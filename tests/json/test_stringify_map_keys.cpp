@@ -3,6 +3,40 @@
 #include <rfl/json.hpp>
 
 namespace test_stringify_map_keys {
+struct Tag {
+  int id;
+  auto operator<=>(const Tag&) const = default;
+};
+
+struct StringRefKey {
+  std::string value;
+  auto operator<=>(const StringRefKey&) const = default;
+};
+}  // namespace test_stringify_map_keys
+
+namespace rfl {
+template <>
+struct Reflector<test_stringify_map_keys::Tag> {
+  static std::string from(const test_stringify_map_keys::Tag& tag) {
+    return std::to_string(tag.id);
+  }
+};
+
+template <>
+struct Reflector<test_stringify_map_keys::StringRefKey> {
+  using ReflType = std::string&;
+
+  static auto to(ReflType value) {
+    return test_stringify_map_keys::StringRefKey{std::move(value)};
+  }
+  static const std::string& from(
+      const test_stringify_map_keys::StringRefKey& key) {
+    return key.value;
+  }
+};
+}  // namespace rfl
+
+namespace test_stringify_map_keys {
 using P = rfl::StringifyMapKeys;
 
 TEST(json, stringify_map_keys_roundtrip) {
@@ -36,6 +70,29 @@ TEST(json, stringify_map_keys_reflector_precedence) {
   EXPECT_EQ(*result, map);
   EXPECT_EQ(rfl::json::write<P>(std::map<Key, int>{{Key{1}, 9}}),
             R"({"key-1":9})");
+}
+
+TEST(json, stringify_map_keys_reflector_without_refl_type) {
+  struct Document {
+    std::map<Colour, int> colours;
+    std::map<Tag, int> tags;
+  };
+
+  const auto result = rfl::json::read<Document, P>(
+      R"({"colours":{"Red":1},"tags":[[{"id":7},2]]})");
+  ASSERT_TRUE(result) << result.error().what();
+  EXPECT_EQ(result->colours.at(Colour::Red), 1);
+  EXPECT_EQ(result->tags.at(Tag{7}), 2);
+}
+
+TEST(json, stringify_map_keys_string_reference_reflector) {
+  using Map = std::map<StringRefKey, int>;
+  const Map map{{StringRefKey{"key"}, 3}};
+  const auto json = rfl::json::write<P>(map);
+  EXPECT_EQ(json, R"({"key":3})");
+  const auto result = rfl::json::read<Map, P>(json);
+  ASSERT_TRUE(result) << result.error().what();
+  EXPECT_EQ(*result, map);
 }
 
 TEST(json, stringify_map_keys_errors) {

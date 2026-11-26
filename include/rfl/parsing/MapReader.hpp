@@ -86,7 +86,7 @@ class MapReader {
     };
 
     if constexpr (StringMapKey<KeyType, ProcessorsType>::enabled) {
-      return StringMapKey<KeyType, ProcessorsType>::read(_pair.first)
+      return StringMapKey<KeyType, ProcessorsType>::read(std::move(_pair.first))
           .and_then(to_pair);
     } else if constexpr (std::is_integral_v<KeyType> ||
                          std::is_floating_point_v<KeyType>) {

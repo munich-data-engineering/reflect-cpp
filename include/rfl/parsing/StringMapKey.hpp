@@ -24,17 +24,24 @@ struct StringMapKey {
       return false;
     } else if constexpr (internal::has_read_reflector<Key> ||
                          internal::has_write_reflector<Key>) {
-      return std::is_same_v<typename Reflector<Key>::ReflType, std::string>;
+      // A write reflector can define from() without declaring ReflType.
+      if constexpr (requires { typename Reflector<Key>::ReflType; }) {
+        using ReflType = std::remove_cvref_t<typename Reflector<Key>::ReflType>;
+        return std::is_same_v<ReflType, std::string>;
+      } else {
+        return false;
+      }
     } else {
       return std::is_enum_v<Key> &&
              !internal::underlying_enums_v<ProcessorsType>;
     }
   }();
 
-  static Result<Key> read(const std::string& _name) noexcept {
+  static Result<Key> read(std::string _name) noexcept {
     if constexpr (internal::has_read_reflector<Key>) {
       try {
-        return Reflector<Key>::to(_name);
+        using ReflType = typename Reflector<Key>::ReflType;
+        return Reflector<Key>::to(static_cast<const ReflType&>(_name));
       } catch (const std::exception& e) {
         return error(e.what());
       }
