@@ -160,6 +160,10 @@ inline rfl::Result<ParsedArgs> parse_string_views(
         continue;
       }
 
+      if (group.starts_with('=')) {
+        return error("Invalid short option '" + std::string(arg_raw) + "'.");
+      }
+
       // Without a table, the short options are not known, so -abc is the one
       // short option "abc": -abc value, -abc=value or -abc.
       for (size_t j = 0; j < group.size(); ++j) {

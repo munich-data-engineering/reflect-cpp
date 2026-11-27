@@ -291,4 +291,20 @@ TEST(cli, test_short_cluster_invalid_utf8_lead_byte) {
             "Unknown short argument: -\xE9 (in '-q\xE9v').");
 }
 
+TEST(cli, test_short_leading_equals_rejected) {
+  // `-=` and `-=foo` must be rejected cleanly (never produce an empty short key
+  // or consume the following token).
+  EXPECT_FALSE(read<Opts>({"-="}));
+  EXPECT_FALSE(read<Opts>({"-=foo"}));
+  EXPECT_FALSE(read<Opts>({"-=", "value"}));
+
+  const rfl::cli::internal::Options no_group{};
+  const auto raw = rfl::cli::internal::parse_string_views(
+      std::vector<std::string_view>{"-="}, no_group);
+  EXPECT_FALSE(raw);
+  const auto raw_val = rfl::cli::internal::parse_string_views(
+      std::vector<std::string_view>{"-=foo"}, no_group);
+  EXPECT_FALSE(raw_val);
+}
+
 }  // namespace test_short_clusters
