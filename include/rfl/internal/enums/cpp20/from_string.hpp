@@ -3,15 +3,14 @@
 
 #ifndef REFLECTCPP_USE_CPP26_REFLECTION
 
-#include <string>
-#include <type_traits>
+#include <string_view>
 
 #include "enchantum.hpp"  // NOLINT(unused-includes)
 
 namespace rfl::internal::enums::cpp20 {
 
 template <class EnumType>
-auto from_string(const std::string& _str) {
+auto from_string(const std::string_view _str) {
   return enchantum::cast<EnumType>(_str);
 }
 
