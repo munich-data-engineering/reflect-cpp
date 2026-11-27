@@ -164,7 +164,7 @@ class Literal {
       return Literal<fields_...>(_v);
     };
     return find_value(_str).transform(to_literal);
-  };
+  }
 
   /// The name defined by the Literal (returns the string representation).
   /// @return The string value of the current literal

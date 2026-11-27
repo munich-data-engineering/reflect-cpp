@@ -46,7 +46,8 @@ inline std::optional<std::u32string> decode_utf8(const std::string& _str) {
       return std::nullopt;  // truncated multi-byte sequence
     }
     for (int k = 1; k <= extra; ++k) {
-      const auto cc = static_cast<unsigned char>(_str[i + k]);
+      const auto cc =
+          static_cast<unsigned char>(_str[i + static_cast<std::size_t>(k)]);
       if ((cc >> 6) != 0x2) {
         return std::nullopt;  // bad continuation byte
       }

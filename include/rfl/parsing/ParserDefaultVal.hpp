@@ -64,8 +64,10 @@ struct ParserDefaultVal {
   static schema::Type to_schema(
       std::map<std::string, schema::Type>* _definitions) {
     using U = std::remove_cvref_t<T>;
-    return schema::Type{schema::Type::DefaultVal{Ref<schema::Type>::make(
-        Parser<R, W, U, ProcessorsType>::to_schema(_definitions))}};
+    return schema::Type{schema::Type::DefaultVal{
+        .type_ = Ref<schema::Type>::make(
+            Parser<R, W, U, ProcessorsType>::to_schema(_definitions)),
+        .default_value_ = std::nullopt}};
   }
 };
 

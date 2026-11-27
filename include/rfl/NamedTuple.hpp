@@ -716,7 +716,7 @@ class NamedTuple<> {
   using Values = rfl::Tuple<>;
 
   /// @brief Default constructor for empty NamedTuple.
-  NamedTuple(){};
+  NamedTuple() {}
 
   /// @brief Destructor.
   ~NamedTuple() = default;

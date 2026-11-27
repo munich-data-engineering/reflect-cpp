@@ -19,7 +19,7 @@ template <class T>
 struct is_atomic {
   static constexpr bool value = false;
   using RemoveAtomicT = T;
-  static void set(RemoveAtomicT&& val, T* _t) { *_t = std::forward<T>(val); };
+  static void set(RemoveAtomicT&& val, T* _t) { *_t = std::forward<T>(val); }
 };
 
 template <class T>
@@ -28,7 +28,7 @@ struct is_atomic<std::atomic<T>> {
   using RemoveAtomicT = T;
   static void set(RemoveAtomicT&& val, std::atomic<T>* _t) {
     _t->store(std::forward<RemoveAtomicT>(val), std::memory_order_relaxed);
-  };
+  }
 };
 
 template <>

@@ -92,7 +92,8 @@ struct VectorParser {
       MapParser<R, W, VecType, ProcessorsType>::write(_w, _vec, _parent);
     } else {
       auto arr = ParentType::add_array(
-          _w, std::distance(_vec.begin(), _vec.end()), _parent);
+          _w, static_cast<size_t>(std::distance(_vec.begin(), _vec.end())),
+          _parent);
       const auto new_parent = typename ParentType::Array{&arr};
       for (const auto& v : _vec) {
         Parser<R, W, std::remove_cvref_t<T>, ProcessorsType>::write(_w, v,

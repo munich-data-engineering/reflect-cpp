@@ -56,7 +56,7 @@ class RFL_API Writer {
   }
 
   template <class T>
-  OutputVarType value_as_root(const T& _var) const noexcept {
+  OutputVarType value_as_root(const T&) const noexcept {
     static_assert(
         always_false_v<T>,
         "Writing basic types to ENV as root variables is not supported.");

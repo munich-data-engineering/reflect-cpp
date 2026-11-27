@@ -196,10 +196,10 @@ class RFL_API Generic {
   Result<std::string> to_string() const noexcept;
 
   /// Returns the underlying variant.
-  VariantType& variant() noexcept { return value_; };
+  VariantType& variant() noexcept { return value_; }
 
   /// Returns the underlying variant.
-  const VariantType& variant() const noexcept { return value_; };
+  const VariantType& variant() const noexcept { return value_; }
 
   /// Equality comparison. Two Generics are equal if they hold the same
   /// alternative and the underlying values compare equal.

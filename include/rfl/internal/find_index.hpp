@@ -25,7 +25,7 @@ constexpr auto operator|(const FieldWrapper<F1, _field_name, _i1>& _f1,
 template <class Head, class... Tail>
 constexpr auto find_matching_field(const Head& _head, const Tail&... _tail) {
   return (_head | ... | _tail);
-};
+}
 
 template <StringLiteral _field_name, class Fields, int... _is>
 constexpr auto wrap_fields(std::integer_sequence<int, _is...>) {
