@@ -1,8 +1,12 @@
 #ifndef RFL_ENUMS_HPP_
 #define RFL_ENUMS_HPP_
 
-#include <sstream>
+#include <charconv>
 #include <string>
+#include <string_view>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
 #include "Result.hpp"
 #include "internal/enums/from_string.hpp"
@@ -89,8 +93,8 @@ std::string enum_to_string(const EnumType _enum) {
 // EnumNamesOnly processor with a parser) to accept only the declared
 // enumerator names instead.
 template <class EnumType, bool enum_names_only = false>
-Result<EnumType> string_to_enum(const std::string& _str) {
-  const auto make_error_msg = [&](const auto& name) {
+Result<EnumType> string_to_enum(const std::string_view _str) {
+  const auto make_error_msg = [](const std::string_view name) {
     std::string msg = "Invalid enum value: '";
     msg += name;
     msg += "'. Must be one of [";
@@ -105,7 +109,7 @@ Result<EnumType> string_to_enum(const std::string& _str) {
   };
 
   const auto cast_numbers_or_names =
-      [&](const std::string& name) -> Result<EnumType> {
+      [&](const std::string_view name) -> Result<EnumType> {
     const auto r = internal::enums::from_string<EnumType>(name);
     if (r) {
       return *r;
@@ -113,26 +117,50 @@ Result<EnumType> string_to_enum(const std::string& _str) {
     if constexpr (enum_names_only) {
       return make_error_msg(name);
     } else {
-      try {
-        const auto val = std::stoi(name);
-        return static_cast<EnumType>(val);
-      } catch (std::exception& exp) {
+      if (name.empty()) {
         return make_error_msg(name);
       }
+      using Underlying = std::underlying_type_t<EnumType>;
+      using ParseType = std::conditional_t<
+          (sizeof(Underlying) < sizeof(int)), int,
+          std::conditional_t<
+              std::is_signed_v<Underlying>,
+              std::conditional_t<
+                  (sizeof(Underlying) <= sizeof(int)), int,
+                  std::conditional_t<(sizeof(Underlying) <= sizeof(long)), long,
+                                     long long>>,
+              std::conditional_t<
+                  (sizeof(Underlying) <= sizeof(unsigned int)), unsigned int,
+                  std::conditional_t<
+                      (sizeof(Underlying) <= sizeof(unsigned long)),
+                      unsigned long, unsigned long long>>>>;
+      ParseType val{};
+      const auto* begin = name.data();
+      const auto* end = begin + name.size();
+      const auto [ptr, ec] = std::from_chars(begin, end, val);
+      if (ec == std::errc{} && ptr == end) {
+        return static_cast<EnumType>(val);
+      }
+      return make_error_msg(name);
     }
   };
 
   if constexpr (internal::enums::is_flag_enum<EnumType>) {
     using T = std::underlying_type_t<EnumType>;
-    const auto split = internal::strings::split(_str, "|");
     auto res = static_cast<T>(0);
-    for (const auto& s : split) {
-      const auto r = cast_numbers_or_names(s);
-      if (r) {
-        res |= static_cast<T>(*r);
-      } else {
+    std::string_view remaining = _str;
+    while (true) {
+      const auto pos = remaining.find('|');
+      const auto token = remaining.substr(0, pos);
+      const auto r = cast_numbers_or_names(token);
+      if (!r) {
         return r;
       }
+      res |= static_cast<T>(*r);
+      if (pos == std::string_view::npos) {
+        break;
+      }
+      remaining.remove_prefix(pos + 1);
     }
     return static_cast<EnumType>(res);
   } else {

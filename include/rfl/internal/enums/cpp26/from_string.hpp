@@ -5,13 +5,13 @@
 
 #include <meta>
 #include <optional>
-#include <string>
+#include <string_view>
 #include <type_traits>
 
 namespace rfl::internal::enums::cpp26 {
 
 template <class EnumType>
-std::optional<EnumType> from_string(const std::string& _str) {
+std::optional<EnumType> from_string(const std::string_view _str) {
   template for (constexpr auto e : std::define_static_array(
                     std::meta::enumerators_of(^^EnumType))) {
     if (_str == std::meta::identifier_of(e)) {
