@@ -774,7 +774,7 @@ namespace std {
 template <class... Types>
 void swap(rfl::Variant<Types...>& _lhs, rfl::Variant<Types...>& _rhs) noexcept {
   _lhs.swap(_rhs);
-};
+}
 }  // namespace std
 
 #endif

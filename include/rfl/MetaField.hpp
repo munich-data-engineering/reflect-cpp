@@ -21,11 +21,11 @@ class MetaField {
 
   /// Returns the name of the field.
   /// @return The field name as it appears in the struct
-  const std::string& name() const { return name_; };
+  const std::string& name() const { return name_; }
 
   /// Returns the type information of the field.
   /// @return A string describing the field's type
-  const std::string& type() const { return type_; };
+  const std::string& type() const { return type_; }
 
  private:
   /// The name of the field.

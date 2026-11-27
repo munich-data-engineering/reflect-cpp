@@ -44,7 +44,7 @@ struct IndptrHelper {
   static constexpr auto indptr_ = ArrayType{_head, _tail...};
 
   template <size_t... _is>
-  consteval auto operator+(const IndptrHelper<_is...>& _other) const {
+  consteval auto operator+(const IndptrHelper<_is...>&) const {
     constexpr auto last = std::get<sizeof...(_tail)>(indptr_);
     return IndptrHelper<_head, _tail..., (last + _is)...>{};
   }

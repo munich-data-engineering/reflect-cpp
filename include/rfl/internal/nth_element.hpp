@@ -23,7 +23,7 @@ constexpr auto operator|(const ElementWrapper<T1, N, _i1>& _e1,
 template <class Head, class... Tail>
 constexpr auto find_matching_element(const Head& _head, const Tail&... _tail) {
   return (_head | ... | _tail);
-};
+}
 
 template <int N, class... Ts, int... _is>
 constexpr auto wrap_elements(Ts... _ts, std::integer_sequence<int, _is...>) {

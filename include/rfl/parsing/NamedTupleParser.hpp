@@ -308,7 +308,7 @@ struct NamedTupleParser {
         _schema->types_[std::string(F::name())] = std::move(s);
       }
     }
-  };
+  }
 
   template <int... _is>
   static void build_object(const W& _w, const NamedTuple<FieldTypes...>& _tup,
