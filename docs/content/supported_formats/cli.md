@@ -133,6 +133,41 @@ looks like an option (`-` followed by anything except a digit or `.`):
 `Missing value for option '-o'.` Use `=` to pass an empty value or one that
 starts with `-`: `-o=`, `-o=-x`.
 
+### Grouped short options
+
+As in getopt, short options can share one token, and a value can be
+attached to its option:
+
+```cpp
+struct Config {
+  rfl::Short<"q", std::optional<bool>> quiet;
+  rfl::Short<"v", std::optional<bool>> verbose;
+  rfl::Short<"f", std::optional<std::string>> format;
+};
+
+// ./app -qv -fcsv     ->  quiet, verbose, format = "csv"
+// ./app -qvfcsv       ->  the same
+// ./app -qf csv       ->  quiet, format = "csv"
+```
+
+Flags are set up to the first option that takes a value. That option takes
+the rest of the token, or the next token if nothing is left. The last
+option in a token treats the next token as it would alone (`-qv false` sets
+`verbose` to `false`).
+
+- `-f=csv` and `-qf=csv` give `csv`: the `=` is not part of the value.
+- A flag inside a group takes no value: `-vq=false` is an error.
+- A letter that is not a short option is an error:
+  `Unknown short argument: -x (in '-qxf').`
+- A token like `-42`, `-1.5` or `-.5` is a negative number, so `-p -42`,
+  `-p-42` and a positional `-42` work. If a short option's name is a digit
+  (see [Positional arguments](#positional-arguments)), such a token is a
+  group of short options instead: `-15` is `-1 -5`, and `-10` and `-1.5`
+  fail with `Unknown short argument: -0 (in '-10').` and
+  `-. (in '-1.5')`.
+- Grouping needs the struct: the public `rfl::cli::parse_argv` reads `-abc`
+  as the one short option `abc`.
+
 ## Combining wrappers
 
 `Short` and `Positional` can be nested with `DefaultVal`, `std::optional`,
@@ -175,7 +210,7 @@ struct Config {
 | `rfl::Flatten<T>` | fields inlined | No prefix needed |
 | `rfl::Rename<"x", T>` | `--x=val` | Bypasses kebab conversion |
 | `rfl::Positional<T>` | bare token | Matched in declaration order |
-| `rfl::Short<"x", T>` | `-x value` or `-x=value` | Single-character alias |
+| `rfl::Short<"x", T>` | `-x value`, `-x=value` or `-xvalue` | Single-character alias, can be grouped (`-qv`) |
 
 ## Architecture
 
