@@ -46,7 +46,8 @@ namespace internal {
 /// fails if there is none. A bool flag consumes it only if it is "true",
 /// "false", "1" or "0". Short options missing from `_options` consume it
 /// unless it looks like an option, as they do without `_options`. Long
-/// options never consume it.
+/// options never consume it. With `_options.reject_unknown`, a long option
+/// that matches no field is an error.
 /// A token that looks like a negative number (-5, -.5) is a positional
 /// argument unless `_options.negative_numbers_are_options` is set, as it is
 /// without `_options` and when the struct has a short option whose name
@@ -139,6 +140,10 @@ inline rfl::Result<ParsedArgs> parse_string_views(
           eq == std::string_view::npos ? "" : arg.substr(eq + 1));
       if (key.empty()) {
         return error("Empty key in argument: " + std::string(arg_raw));
+      }
+      if (_options.reject_unknown
+          && _options.find_long(key).kind == OptionKind::unknown) {
+        return error("Unknown option '--" + key + "'.");
       }
       if (!result.named.emplace(std::move(key), std::move(val)).second) {
         return error("Duplicate argument: " + std::string(arg_raw));

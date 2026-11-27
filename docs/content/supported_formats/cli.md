@@ -69,6 +69,18 @@ const auto result = rfl::cli::read<Config>(args);
 
 `rfl::cli::parse_argv` has the same overloads.
 
+## Unknown options
+
+By default, long options that match no field are ignored. Pass
+`rfl::NoExtraFields` to reject them:
+
+```cpp
+const auto result = rfl::cli::read<Config, rfl::NoExtraFields>(argc, argv);
+// ./app --nope=1   ->  error: Unknown option '--nope'.
+```
+
+Unknown short options are always an error.
+
 ## Positional arguments
 
 Wrap a field with `rfl::Positional<T>` to accept it as a bare (non-flag) argument:
