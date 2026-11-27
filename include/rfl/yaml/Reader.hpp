@@ -18,6 +18,7 @@
 
 #include "../Result.hpp"
 #include "../always_false.hpp"
+#include "../common.hpp"
 
 namespace rfl {
 namespace yaml {
@@ -58,6 +59,23 @@ struct Reader {
   template <class T>
   static constexpr bool has_custom_constructor =
       (requires(InputVarType var) { T::from_yaml_obj(var); });
+
+  /// @brief RAII guard tracking ancestor YAML nodes on the current thread to
+  /// reject cyclic aliases while keeping const Reader instances thread-safe and
+  /// allowing non-cyclic (DAG) alias reuse.
+  class RFL_API ActiveNodeGuard {
+   public:
+    explicit ActiveNodeGuard(const YAML::Node& _node);
+    ~ActiveNodeGuard();
+    ActiveNodeGuard(const ActiveNodeGuard&) = delete;
+    ActiveNodeGuard& operator=(const ActiveNodeGuard&) = delete;
+
+    bool is_cycle() const noexcept { return is_cycle_; }
+
+   private:
+    bool is_cycle_;
+    bool pushed_;
+  };
 
   /// @brief Constructs a Reader from a YAML string view.
   /// @param _yaml_str The YAML document as a string view.
@@ -117,8 +135,10 @@ struct Reader {
           //
           // This is only done for literal blocks which doesn't have tags or
           // anchors
-          if (_var.node_.Tag() == "!" &&
-              yaml_str_[_var.node_.Mark().pos] == '|') {
+          const auto pos = _var.node_.Mark().pos;
+          if (_var.node_.Tag() == "!" && pos >= 0 &&
+              static_cast<size_t>(pos) < yaml_str_.size() &&
+              yaml_str_[static_cast<size_t>(pos)] == '|') {
             auto last_non_new_line = result.find_last_not_of("\r\n");
             if (last_non_new_line != std::string::npos) {
               result = result.substr(0, last_non_new_line + 1);
@@ -159,6 +179,10 @@ struct Reader {
   template <class ArrayReader>
   std::optional<Error> read_array(const ArrayReader& _array_reader,
                                   const InputArrayType& _arr) const noexcept {
+    const ActiveNodeGuard guard(_arr.node_);
+    if (guard.is_cycle()) {
+      return Error("Recursive YAML alias detected.");
+    }
     if constexpr (requires { _array_reader.reserve(_arr.node_.size()); }) {
       if (auto err = _array_reader.reserve(_arr.node_.size())) {
         return err;
@@ -182,6 +206,10 @@ struct Reader {
   template <class ObjectReader>
   std::optional<Error> read_object(const ObjectReader& _object_reader,
                                    const InputObjectType& _obj) const noexcept {
+    const ActiveNodeGuard guard(_obj.node_);
+    if (guard.is_cycle()) {
+      return Error("Recursive YAML alias detected.");
+    }
     for (const auto& p : _obj.node_) {
       try {
         const auto k = p.first.as<std::string>();
