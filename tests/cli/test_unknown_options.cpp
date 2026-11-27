@@ -167,6 +167,30 @@ TEST(cli, test_unknown_subkey_of_scalar_and_map_and_struct) {
   ASSERT_FALSE(sibling_struct);
   EXPECT_EQ(std::string(sibling_struct.error().what()),
             "Unknown option '--database.nope'.");
+
+  // Sub-key under a scalar field beside ExtraFields<rfl::Generic> must be
+  // rejected by name, not swallowed by ExtraFields.
+  struct ScalarAndGenericExtra {
+    int port = 80;
+    rfl::ExtraFields<rfl::Generic> extra;
+  };
+  const auto scalar_sub = read<ScalarAndGenericExtra, rfl::NoExtraFields>(
+      {"--port=80", "--port.foo=1"});
+  ASSERT_FALSE(scalar_sub);
+  EXPECT_EQ(std::string(scalar_sub.error().what()),
+            "Unknown option '--port.foo'.");
+
+  // Unknown sub-key of a nested struct that itself contains ExtraFields must
+  // also be rejected by name, not swallowed by the inner ExtraFields.
+  struct OuterWithNestedExtra {
+    WithDatabaseAndExtra inner;
+  };
+  const auto nested_extra = read<OuterWithNestedExtra, rfl::NoExtraFields>(
+      {"--inner.database.host=h", "--inner.database.port=1",
+       "--inner.database.nope=1"});
+  ASSERT_FALSE(nested_extra);
+  EXPECT_EQ(std::string(nested_extra.error().what()),
+            "Unknown option '--inner.database.nope'.");
 }
 
 }  // namespace test_unknown_options

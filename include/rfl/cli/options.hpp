@@ -133,12 +133,14 @@ struct Options {
     if (open) {
       const auto rest = _name.substr(open->first.size());
       const auto sep = rest.find(path_separator);
-      if (open->first.empty() && sep != std::string::npos) {
-        // A dotted key whose leading segment is a known nested struct or map
-        // field (e.g. `--database.nope` beside rfl::ExtraFields) belongs to
-        // that field, not to ExtraFields.
-        const auto head_prefix = rest.substr(0, sep + 1);
-        if (has_prefix(long_options, head_prefix)
+      if (sep != std::string::npos) {
+        // A dotted key whose leading segment is a known field (nested struct,
+        // map, or scalar, e.g. `--database.nope` or `--port.foo` beside
+        // rfl::ExtraFields) belongs to that field, not to ExtraFields.
+        const auto head = open->first + rest.substr(0, sep);
+        const auto head_prefix = head + path_separator;
+        if (long_options.contains(head)
+            || has_prefix(long_options, head_prefix)
             || has_prefix(open_prefixes, head_prefix)) {
           return Option{};
         }
