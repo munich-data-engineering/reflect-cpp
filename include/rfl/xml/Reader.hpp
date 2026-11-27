@@ -64,12 +64,12 @@ struct Reader {
       const size_t _idx, const InputArrayType& _arr) const noexcept {
     const auto name = _arr.node_.name();
     size_t i = 0;
-    for (auto node = _arr.node_; node; node = node.next_sibling(name)) {
+    for (auto node = _arr.node_; node; node = node.next_sibling(name), ++i) {
       if (i == _idx) {
         return InputVarType(node);
       }
     }
-    return error("Index " + std::to_string(_idx) + " of of bounds.");
+    return error("Index " + std::to_string(_idx) + " out of bounds.");
   }
 
   /// Retrieves a field from an XML object by name.

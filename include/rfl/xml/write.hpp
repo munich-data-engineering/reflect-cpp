@@ -87,7 +87,7 @@ template <internal::StringLiteral _root = internal::StringLiteral(""),
           class... Ps>
 std::string write(const auto& _obj, const std::string& _indent = "    ") {
   std::stringstream stream;
-  write<_root, Ps...>(_obj, stream);
+  write<_root, Ps...>(_obj, stream, _indent);
   return stream.str();
 }
 
