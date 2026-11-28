@@ -20,7 +20,11 @@ consteval auto get_type_name() {
 
 template <class T>
 consteval auto get_type_name_str_view() {
-  return get_type_name<T>().string_view();
+#ifndef REFLECTCPP_USE_CPP26_REFLECTION
+  return cpp20::get_type_name_str_view<T>();
+#else
+  return cpp26::get_type_name_str_view<T>();
+#endif
 }
 
 }  // namespace rfl::internal

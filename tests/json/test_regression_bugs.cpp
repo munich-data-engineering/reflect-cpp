@@ -2,8 +2,10 @@
 
 #include <cstdlib>
 #include <string>
+#include <string_view>
 
 #include <rfl.hpp>
+#include <rfl/internal/get_type_name.hpp>
 #include <rfl/json.hpp>
 
 // transform_camel_case prepends '_' to names starting with uppercase
@@ -82,6 +84,33 @@ TEST(regression, json_writer_handles_non_null_terminated_field_names) {
 }
 
 }  // namespace test_writer_strcpy_non_null_terminated
+
+// rfl::internal::get_type_name_str_view<T>() previously returned
+// get_type_name<T>().string_view(), which dangled into the temporary
+// StringLiteral returned by value and failed constant evaluation.
+namespace test_get_type_name_str_view {
+
+struct SampleType {
+  int value = 0;
+};
+
+constexpr std::string_view kIntName = rfl::internal::get_type_name_str_view<int>();
+constexpr std::string_view kStructName =
+    rfl::internal::get_type_name_str_view<SampleType>();
+
+static_assert(kIntName == "int");
+static_assert(kIntName == rfl::internal::get_type_name<int>().string_view());
+static_assert(kStructName ==
+              rfl::internal::get_type_name<SampleType>().string_view());
+
+TEST(regression, get_type_name_str_view_is_valid_constexpr) {
+  EXPECT_EQ(kIntName, "int");
+  EXPECT_EQ(kStructName,
+            rfl::internal::get_type_name<SampleType>().string_view());
+  EXPECT_NE(kStructName.find("SampleType"), std::string_view::npos);
+}
+
+}  // namespace test_get_type_name_str_view
 
 // Parser_string_view / Parser_span memory leak bugs are tested
 // in tests/alloc/ — a separate executable with custom operator new[]/delete[]
