@@ -11,10 +11,10 @@
 namespace rfl::internal::cpp26 {
 
 template <class T>
-consteval auto get_type_name() {
+consteval auto get_type_name_str_view() {
   using Type = std::remove_cvref_t<T>;
   if constexpr (std::is_pointer_v<Type>) {
-    return get_type_name<std::remove_pointer_t<Type>>();
+    return get_type_name_str_view<std::remove_pointer_t<Type>>();
   } else {
     // TODO: Is there a way to get the name of the type without using
     // compiler-specific extensions?
@@ -22,15 +22,19 @@ consteval auto get_type_name() {
     constexpr auto display_string = std::meta::display_string_of(^^Type);
     constexpr auto drop_last_char =
         display_string.substr(0, display_string.size() - 1);
-    constexpr auto name =
-        drop_last_char.substr(drop_last_char.find("{aka ") + 5);
-    return StringLiteral<name.size() + 1>(name);
+    return drop_last_char.substr(drop_last_char.find("{aka ") + 5);
 #else
     static_assert(false,
                   "You are using an unsupported compiler. Please use GCC or "
                   "explicitly tag your structs using 'Tag' or 'Name'.");
 #endif
   }
+}
+
+template <class T>
+consteval auto get_type_name() {
+  constexpr auto name = get_type_name_str_view<T>();
+  return StringLiteral<name.size() + 1>(name);
 }
 }  // namespace rfl::internal::cpp26
 
